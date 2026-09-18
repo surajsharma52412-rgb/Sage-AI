@@ -1,0 +1,100 @@
+{
+  "project_name": "New folder (2)",
+  "root_path": "C:\\Users\\sura5\\OneDrive\\Desktop\\New folder (2)",
+  "file_count": 176,
+  "primary_language": "python",
+  "languages": {
+    "python": 165,
+    "batch": 1,
+    "shell": 1
+  },
+  "frameworks": [
+    "Flask"
+  ],
+  "package_managers": [
+    "pip"
+  ],
+  "test_frameworks": [
+    "unittest"
+  ],
+  "entry_points": [
+    "main.py"
+  ],
+  "architecture_type": "Backend REST API / Microservice",
+  "manifests_present": [
+    "requirements.txt",
+    ".env.example",
+    "README.md"
+  ],
+  "has_docker": false,
+  "has_ci": false,
+  "modules": {
+    "assets": [
+      "logo.ico",
+      "logo.png",
+      "ui_preview.png"
+    ],
+    "data": [
+      "knowledge_base.json",
+      "sage_ai.db"
+    ],
+    "database": [
+      "db_manager.py",
+      "__init__.py"
+    ],
+    "engine": [
+      "agents",
+      "automation_agent.py",
+      "coding_agent",
+      "collab_service.py",
+      "execution",
+      "governance",
+      "model_scanner.py",
+      "ollama_manager.py",
+      "orchestrator",
+      "project_agent",
+      "providers",
+      "request_analyzer.py",
+      "router.py",
+      "shared_resources",
+      "tools"
+    ],
+    "scratch": [
+      "capture_html_and_file_ops.py",
+      "capture_verification.py"
+    ],
+    "tests": [
+      "test_analyzer.py",
+      "test_api.py",
+      "test_automations_and_attachments.py",
+      "test_automations_and_project_fixes.py",
+      "test_code_blocks_and_ascii.py",
+      "test_coding_agent_v6.py",
+      "test_collab_and_fullscreen.py",
+      "test_collab_internet_relay.py",
+      "test_collab_speed_and_folder_expansion.py",
+      "test_collab_whiteboard.py",
+      "test_database.py",
+      "test_ide_html_models_and_file_ops.py",
+      "test_ide_syntax_and_autocomplete.py",
+      "test_image_credit_flow.py",
+      "test_knowledge_and_themes.py"
+    ],
+    "ui": [
+      "components",
+      "main_window.py",
+      "styles",
+      "__init__.py"
+    ],
+    "web_runner": [
+      "web_server.py",
+      "__init__.py"
+    ],
+    "workers": [
+      "agent_worker.py",
+      "chat_worker.py",
+      "__init__.py"
+    ],
+    "workspace": []
+  }
+}

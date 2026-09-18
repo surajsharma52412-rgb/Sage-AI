@@ -1,0 +1,151 @@
+{
+  "fact_creator": {
+    "title": "Creator & Lead Developer: Suraj Sharma",
+    "content": "**Suraj Sharma** is the creator, founder, and lead developer of **Sage AI (Lunar Engine)**.\n\n### Developer Profile:\n- **Creator & Founder:** Suraj Sharma\n- **Project:** Sage AI\n- **Architecture:** Autonomous Desktop Pair-Programmer & Intelligent LLM Waterfall Router\n- **Status:** Permanent and immutable creator of Sage AI.",
+    "tags": [
+      "who created you",
+      "who is your creator",
+      "who made you",
+      "who built sage ai",
+      "creator",
+      "suraj sharma",
+      "who is suraj",
+      "who developed sage",
+      "developer",
+      "founder"
+    ]
+  },
+  "fact_0": {
+    "title": "About Sage AI (Lunar Engine)",
+    "content": "**Sage AI** is a next-generation native desktop AI assistant powered by the **Lunar Engine**.\n\n### Core Highlights:\n- **PySide6 Native Engine**: Ultra-responsive, fluid dark emerald desktop interface.\n- **Multi-Provider Waterfall Fallback**: Intelligently cascades between OpenRouter, Groq, NVIDIA NIM, Google Gemini, and local Ollama instances.\n- **Autonomous Project Coding Agent**: Inspects workspaces safely, plans atomic file operations, and runs automated test suites with self-repair loops.\n- **Private & Local-First**: SQLite persistence, offline local fact engine, and complete user data sovereignty.\n- **Single-Window Experience**: Zero annoying popup windows \u2014 Settings, Add AI Models, and Analytics all live in the same window.",
+    "tags": [
+      "who are you",
+      "what is sage ai",
+      "what is lunar engine",
+      "about sage",
+      "about sage ai",
+      "what can you do"
+    ]
+  },
+  "fact_1": {
+    "title": "Python Language & Cheatsheet",
+    "content": "### Python 3 Quick Reference\n\n#### Key Features:\n- **Clean Syntax**: Readable, dynamic typing, automatic memory management.\n- **Virtual Environment**: `python -m venv .venv` and activate via `.venv\\Scripts\\activate` (Windows) or `source .venv/bin/activate` (macOS/Linux).\n\n#### Common Idioms:\n```python\n# List comprehension\nsquares = [x**2 for x in range(10) if x % 2 == 0]\n\n# Dictionary comprehension\nsquares_map = {x: x**2 for x in range(5)}\n\n# Safe dictionary lookup with default\nval = my_dict.get('key', 'default_value')\n\n# Context manager\nwith open('file.txt', 'r', encoding='utf-8') as f:\n    content = f.read()\n```\n\n#### Type Hinting:\n```python\nfrom typing import List, Dict, Optional, Tuple, Any, Callable\n\ndef fetch_user(user_id: str, timeout: float = 5.0) -> Optional[Dict[str, Any]]:\n    ...\n```",
+    "tags": [
+      "python",
+      "python language",
+      "python summary",
+      "python cheatsheet",
+      "python syntax",
+      "what is python"
+    ]
+  },
+  "fact_2": {
+    "title": "PySide6 (Qt for Python) Reference",
+    "content": "### PySide6 Architecture & Best Practices\n\nPySide6 is the official Python module from The Qt Company providing bindings for Qt 6.\n\n#### Core Modules:\n- `QtCore`: Non-GUI logic (`QThread`, `Signal`, `Slot`, `QTimer`, `QDateTime`, `QUrl`).\n- `QtWidgets`: Native desktop UI widgets (`QWidget`, `QPushButton`, `QLabel`, `QScrollArea`, `QStackedWidget`, `QFrame`).\n- `QtGui`: 2D vector painting (`QPainter`, `QColor`, `QFont`, `QPen`, `QBrush`, `QPainterPath`).\n\n#### Safe Threading Pattern:\n```python\nfrom PySide6.QtCore import QThread, Signal\n\nclass Worker(QThread):\n    finished = Signal(dict)\n    error = Signal(str)\n\n    def run(self):\n        try:\n            result = self.do_heavy_work()\n            self.finished.emit(result)\n        except Exception as e:\n            self.error.emit(str(e))\n```\n\n#### High-DPI & Scoped QSS:\n- Always scope custom styles using object names (e.g. `QFrame#myCard { ... }`) to prevent style bleeding to child labels.",
+    "tags": [
+      "pyside6",
+      "what is pyside6",
+      "qt for python",
+      "qt6",
+      "qt",
+      "pyside"
+    ]
+  },
+  "fact_3": {
+    "title": "Essential Git & GitHub Cheatsheet",
+    "content": "### Git Quick Command Reference\n\n#### Daily Workflow:\n- `git status` \u2014 Check modified, staged, and untracked files.\n- `git add -A` \u2014 Stage all changes across the repository.\n- `git commit -m \"feat: descriptive message\"` \u2014 Commit staged changes.\n- `git push origin main` \u2014 Push commits to remote branch.\n- `git pull --rebase origin main` \u2014 Pull remote changes cleanly.\n\n#### Branching & Stashing:\n- `git checkout -b feature/new-idea` \u2014 Create and switch to branch.\n- `git branch -a` \u2014 List all local and remote branches.\n- `git stash` \u2014 Temporarily shelve uncommitted work.\n- `git stash pop` \u2014 Re-apply shelved changes.\n- `git diff` \u2014 View unstaged line-by-line differences.",
+    "tags": [
+      "git",
+      "git commands",
+      "git cheatsheet",
+      "how to use git",
+      "git status",
+      "github"
+    ]
+  },
+  "fact_4": {
+    "title": "Running Unit Tests with Pytest & Unittest",
+    "content": "### Testing Quick Reference\n\n#### Pytest:\n- Run all tests: `pytest`\n- Run with verbose output: `pytest -v`\n- Run a specific file: `pytest tests/test_module.py`\n- Run matching test expression: `pytest -k 'test_feature'`\n- Stop on first failure: `pytest -x`\n\n#### Python Built-in Unittest:\n- Discover and run all tests: `python -m unittest discover tests`\n- Run specific test file: `python -m unittest tests/test_sidebar_and_settings.py`\n- Run specific test class: `python -m unittest tests.test_sidebar_and_settings.TestSidebar`",
+    "tags": [
+      "pytest",
+      "unittest",
+      "how to run pytest",
+      "python tests",
+      "unit test",
+      "testing"
+    ]
+  },
+  "fact_5": {
+    "title": "Local Ollama & Private AI Setup Guide",
+    "content": "### 100% Private Offline AI with Ollama\n\nOllama allows you to run open-weight language models locally on your CPU/GPU without internet or API keys.\n\n#### Setup Steps:\n1. Download and install from [ollama.com](https://ollama.com).\n2. Open your terminal and pull your desired model:\n   - `ollama run llama3.2:3b` \u2014 Fast general chat & reasoning.\n   - `ollama run qwen2.5-coder:7b` \u2014 Coding & architecture specialist.\n   - `ollama run deepseek-r1:8b` \u2014 Deep mathematical reasoning model.\n3. Ollama runs a local HTTP server automatically on `http://127.0.0.1:11434`.\n4. Sage AI automatically connects to your local Ollama instance with zero configuration required!",
+    "tags": [
+      "ollama",
+      "ollama setup",
+      "local ollama",
+      "how to run ollama",
+      "ollama models",
+      "offline ai",
+      "private ai"
+    ]
+  },
+  "fact_6": {
+    "title": "Markdown Formatting Reference",
+    "content": "### Markdown Cheatsheet\n\n- **Headings**: `# H1`, `## H2`, `### H3`, `#### H4`\n- **Styling**: `**bold**`, `*italic*`, `~~strikethrough~~`, `` `inline code` ``\n- **Code Fences**:\n  ```python\n  print('Syntax highlighted code')\n  ```\n- **Lists**:\n  - Unordered: `- Item 1` or `* Item 1`\n  - Ordered: `1. First`, `2. Second`\n- **Blockquotes**: `> Thought or quote`\n- **Tables**:\n  | Feature | Status | Notes |\n  | :--- | :---: | ---: |\n  | Local Facts | Active | Instant |\n  | Fallback Router | Active | Resilient |",
+    "tags": [
+      "markdown",
+      "markdown cheatsheet",
+      "markdown syntax",
+      "format text",
+      "formatting"
+    ]
+  },
+  "fact_7": {
+    "title": "SQL & Database Essentials",
+    "content": "### SQLite & SQL Quick Cheatsheet\n\n#### Querying:\n```sql\n-- Filter and order\nSELECT id, title, created_at FROM sessions WHERE model_used = 'Groq' ORDER BY updated_at DESC LIMIT 10;\n\n-- Aggregations\nSELECT provider_id, COUNT(*) as query_count, SUM(total_tokens) as total_tok FROM model_usage GROUP BY provider_id;\n```\n\n#### Transactions & Performance:\n```sql\n-- Enable WAL mode for high concurrent read/write throughput\nPRAGMA journal_mode = WAL;\nPRAGMA foreign_keys = ON;\n\n-- Create indexes for fast lookup\nCREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);\n```",
+    "tags": [
+      "sql",
+      "sqlite",
+      "database",
+      "sql cheatsheet",
+      "sql queries",
+      "db"
+    ]
+  },
+  "fact_8": {
+    "title": "Linux & Bash Terminal Quick Reference",
+    "content": "### Essential Shell Commands\n\n- `ls -la` / `dir` \u2014 List files with permissions and sizes.\n- `cd <path>` \u2014 Change directory.\n- `mkdir -p <dir>` \u2014 Create directory and parents.\n- `rm -rf <path>` \u2014 Remove file or directory recursively.\n- `cp -r <src> <dest>` \u2014 Copy files or folders.\n- `cat <file>` / `head -n 20 <file>` \u2014 Inspect file contents.\n- `grep -rn \"pattern\" .` \u2014 Search pattern recursively in current directory.\n- `ps aux | grep python` \u2014 Check running python processes.\n- `kill -9 <PID>` \u2014 Terminate process by PID.",
+    "tags": [
+      "linux",
+      "bash",
+      "terminal",
+      "shell",
+      "command line",
+      "cmd",
+      "powershell"
+    ]
+  },
+  "fact_9": {
+    "title": "Debugging Common Python Errors",
+    "content": "### Common Python Errors & Fixes\n\n1. **AttributeError: 'NoneType' object has no attribute 'x'**:\n   - *Cause*: Calling a method or field on a variable that evaluated to `None`.\n   - *Fix*: Guard with `if obj is not None:` or provide a default `obj or {}`.\n2. **KeyError: 'key_name'**:\n   - *Cause*: Accessing non-existent key in dictionary.\n   - *Fix*: Use `my_dict.get('key_name', default)` instead of `my_dict['key_name']`.\n3. **UnicodeDecodeError**:\n   - *Cause*: Reading bytes with incorrect text encoding or across stream split boundaries.\n   - *Fix*: Use `encoding='utf-8', errors='replace'` or `errors='ignore'`.\n4. **TypeError: 'coroutine' was never awaited**:\n   - *Cause*: Calling an `async def` function without `await`.\n   - *Fix*: Add `await func()` inside an async function.",
+    "tags": [
+      "debug",
+      "debugging",
+      "python error",
+      "errors",
+      "troubleshooting",
+      "fix error",
+      "attributeerror",
+      "keyerror"
+    ]
+  },
+  "mem_87a2a20b": {
+    "title": "[Directive] Python Typing Standards",
+    "content": "Always write type annotations for all function parameters and return types.",
+    "tags": [
+      "code",
+      "python",
+      "typing",
+      "directive"
+    ]
+  }
+}
