@@ -1,5 +1,5 @@
 """
-Script to capture screenshots verifying the bug fixes for General Settings Dialog and the redesigned ProjectAgentView.
+Script to capture screenshots verifying the bug fixes for General Settings Dialog.
 """
 import sys
 import os
@@ -23,16 +23,9 @@ def run():
     win.show()
     app.processEvents()
 
-    # 1. Capture Redesigned Projects Tab in Main Window
-    # Switch stack to Index 1 (Projects view)
-    win.stack.setCurrentIndex(1)
-    # Also trigger tree refresh
-    win.project_view._refresh_tree()
+    # Switch stack to Coding IDE view
+    win._handle_navigation("coding_agent")
     app.processEvents()
-
-    p_proj = ARTIFACTS_DIR / "project_agent_view_redesigned.png"
-    win.grab().save(str(p_proj))
-    print(f"Captured: {p_proj}")
 
     # 2. Capture General Settings Dialog - Profile Tab
     dlg = GeneralSettingsDialog(win)

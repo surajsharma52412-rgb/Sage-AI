@@ -265,8 +265,10 @@ class ModelScanner:
                     "is_free_tier": True,
                     "details": {"type": "Local Private Engine"}
                 })
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            logger.debug("Ollama server not reachable at http://127.0.0.1:11434 (offline).")
         except Exception as e:
-            logger.warning("Failed to scan Ollama models: %s", e)
+            logger.debug("Failed to scan Ollama models: %s", e)
 
         return models
 

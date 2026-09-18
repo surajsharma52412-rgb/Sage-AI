@@ -104,7 +104,8 @@ class LineNumberArea(QWidget):
         self.editor = editor
 
     def sizeHint(self):
-        return self.editor.line_number_area_size()
+        from PySide6.QtCore import QSize
+        return QSize(self.editor.line_number_area_width(), 0)
 
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
@@ -135,6 +136,14 @@ class CodeEditor(QPlainTextEdit):
                 selection-color: #ffffff;
             }
         """)
+
+    def line_number_area_width(self) -> int:
+        digits = 1
+        m = max(1, self.blockCount())
+        while m >= 10:
+            m //= 10
+            digits += 1
+        return 16 + self.fontMetrics().horizontalAdvance('9') * digits
 
     def set_language(self, lang: str):
         self.highlighter.set_language(lang)
@@ -440,11 +449,11 @@ if __name__ == "__main__":
                 color: #00D1FF;
             }
         """)
-        p_menu = QMenu(self)
-        p_menu.setStyleSheet("background-color: #162033; color: #f4f5fb; border: 1px solid rgba(0, 209, 255, 0.3);")
-        p_menu.addAction("📂 Open Folder from Computer...", self._select_folder)
-        p_menu.addAction("➕ Create New Project Folder...", self._create_new_folder)
-        self.project_dropdown.setMenu(p_menu)
+        self.p_menu = QMenu(self)
+        self.p_menu.setStyleSheet("background-color: #162033; color: #f4f5fb; border: 1px solid rgba(0, 209, 255, 0.3);")
+        self.p_menu.addAction("📂 Open Folder from Computer...", self._select_folder)
+        self.p_menu.addAction("➕ Create New Project Folder...", self._create_new_folder)
+        self.project_dropdown.clicked.connect(lambda: self.p_menu.exec(self.project_dropdown.mapToGlobal(QPoint(0, self.project_dropdown.height()))))
         header_layout.addWidget(self.project_dropdown)
 
         self.branch_dropdown = QPushButton("🌿 main ▾")
@@ -463,12 +472,12 @@ if __name__ == "__main__":
                 color: #00D1FF;
             }
         """)
-        b_menu = QMenu(self)
-        b_menu.setStyleSheet("background-color: #162033; color: #f4f5fb; border: 1px solid rgba(0, 209, 255, 0.3);")
-        b_menu.addAction("🌿 main (Current)", lambda: self.branch_dropdown.setText("🌿 main ▾"))
-        b_menu.addAction("🌿 dev", lambda: self.branch_dropdown.setText("🌿 dev ▾"))
-        b_menu.addAction("➕ New Branch...", self._create_git_branch)
-        self.branch_dropdown.setMenu(b_menu)
+        self.b_menu = QMenu(self)
+        self.b_menu.setStyleSheet("background-color: #162033; color: #f4f5fb; border: 1px solid rgba(0, 209, 255, 0.3);")
+        self.b_menu.addAction("🌿 main (Current)", lambda: self.branch_dropdown.setText("🌿 main ▾"))
+        self.b_menu.addAction("🌿 dev", lambda: self.branch_dropdown.setText("🌿 dev ▾"))
+        self.b_menu.addAction("➕ New Branch...", self._create_git_branch)
+        self.branch_dropdown.clicked.connect(lambda: self.b_menu.exec(self.branch_dropdown.mapToGlobal(QPoint(0, self.branch_dropdown.height()))))
         header_layout.addWidget(self.branch_dropdown)
 
         # Action Buttons
@@ -648,13 +657,13 @@ if __name__ == "__main__":
                 border-color: #00D1FF;
             }
         """)
-        prof_menu = QMenu(self)
-        prof_menu.setStyleSheet("background-color: #162033; color: #f4f5fb; border: 1px solid rgba(0, 209, 255, 0.3);")
-        prof_menu.addAction(f"👤 Profile: {display_name}", lambda: None)
-        prof_menu.addAction("📊 Model Usage & Combined Tokens...", self._open_usage_view)
-        prof_menu.addAction("⚙️ Settings & API Keys...", self._open_settings_dialog)
-        prof_menu.addAction("⛶ Toggle Fullscreen (F11)", lambda: self.toggle_fullscreen())
-        self.profile_btn.setMenu(prof_menu)
+        self.prof_menu = QMenu(self)
+        self.prof_menu.setStyleSheet("background-color: #162033; color: #f4f5fb; border: 1px solid rgba(0, 209, 255, 0.3);")
+        self.prof_menu.addAction(f"👤 Profile: {display_name}", lambda: None)
+        self.prof_menu.addAction("📊 Model Usage & Combined Tokens...", self._open_usage_view)
+        self.prof_menu.addAction("⚙️ Settings & API Keys...", self._open_settings_dialog)
+        self.prof_menu.addAction("⛶ Toggle Fullscreen (F11)", lambda: self.toggle_fullscreen())
+        self.profile_btn.clicked.connect(lambda: self.prof_menu.exec(self.profile_btn.mapToGlobal(QPoint(0, self.profile_btn.height()))))
         header_layout.addWidget(self.profile_btn)
 
         self.fullscreen_btn = QPushButton("⛶")

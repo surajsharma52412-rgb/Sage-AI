@@ -7,18 +7,18 @@ app = QApplication.instance() or QApplication(sys.argv)
 
 from ui.components.sidebar import Sidebar
 from ui.components.analytics_view import AnalyticsView
-from ui.components.project_view import ProjectAgentView
 from engine.router import FallbackRouter
 from engine.automation_agent import GmailAutomationService
 
 
 class TestAutomationsAndProjectFixes(unittest.TestCase):
     def test_sidebar_does_not_contain_explore_or_assistants(self):
-        """Verify 'explore' and 'assistants' have been completely removed from sidebar."""
+        """Verify 'explore', 'assistants', and 'projects' have been completely removed from sidebar."""
         sidebar = Sidebar()
         item_keys = list(sidebar._nav_buttons.keys())
         self.assertNotIn("explore", item_keys)
         self.assertNotIn("assistants", item_keys)
+        self.assertNotIn("projects", item_keys)
         sidebar.deleteLater()
 
     def test_provider_cards_height_and_no_clipping(self):
@@ -73,14 +73,6 @@ class TestAutomationsAndProjectFixes(unittest.TestCase):
         draft = service.draft_reply(email_sample)
         self.assertIsInstance(draft, str)
         self.assertTrue(len(draft) > 10)
-
-    def test_project_view_stop_button(self):
-        """Verify ProjectAgentView has a functional stop button."""
-        pv = ProjectAgentView()
-        self.assertTrue(hasattr(pv, "stop_btn"))
-        self.assertEqual(pv.stop_btn.text(), "⏹ Stop Task")
-        self.assertFalse(pv.stop_btn.isEnabled())
-        pv.deleteLater()
 
 
 if __name__ == "__main__":

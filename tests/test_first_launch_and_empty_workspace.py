@@ -9,7 +9,6 @@ from PySide6.QtCore import Qt
 from database.db_manager import DatabaseManager, get_db
 from ui.components.onboarding_dialog import FirstLaunchOnboardingDialog
 from ui.components.coding_ide_view import CodingIdeView
-from ui.components.project_view import ProjectAgentView
 from ui.components.general_settings_dialog import GeneralSettingsDialog
 from ui.components.settings_view import SettingsView
 
@@ -116,14 +115,6 @@ class TestFirstLaunchAndEmptyWorkspace(unittest.TestCase):
         self.assertIn("No folder or file opened", ide.editor.toPlainText())
 
         ide.deleteLater()
-
-    def test_project_agent_view_starts_without_folder(self):
-        """Verify ProjectAgentView starts with no folder selected."""
-        pv = ProjectAgentView()
-        self.assertIsNone(pv.workspace_path)
-        self.assertIn("None Selected", pv.path_lbl.text())
-        self.assertIn("Select Folder", pv.change_folder_btn.text())
-        pv.deleteLater()
 
     def test_general_settings_and_settings_view_no_hardcoded_user(self):
         """Verify settings views load user from DB and don't hardcode Suraj Sharma."""

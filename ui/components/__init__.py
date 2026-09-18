@@ -7,7 +7,6 @@ from .chat_viewport import ChatViewport
 from .message_bubble import MessageBubble
 from .live_working_panel import LiveWorkingPanel
 from .input_bar import MessageInputBar
-from .project_view import ProjectAgentView
 from .coding_ide_view import CodingIdeView
 from .permission_dialog import PermissionDialog
 from .automations_view import AutomationsView
@@ -32,7 +31,6 @@ __all__ = [
     "MessageBubble",
     "LiveWorkingPanel",
     "MessageInputBar",
-    "ProjectAgentView",
     "CodingIdeView",
     "PermissionDialog",
     "AutomationsView",

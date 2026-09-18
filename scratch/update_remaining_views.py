@@ -4,7 +4,6 @@ files_to_update = [
     'ui/components/multi_agent_view.py',
     'ui/components/knowledge_view.py',
     'ui/components/add_models_view.py',
-    'ui/components/project_view.py',
     'ui/components/settings_dialog.py',
     'ui/components/general_settings_dialog.py',
     'ui/components/permission_dialog.py',

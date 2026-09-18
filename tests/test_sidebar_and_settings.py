@@ -83,41 +83,6 @@ class TestSidebarAndSettings(unittest.TestCase):
 
         dialog.deleteLater()
 
-    def test_project_agent_view_features(self):
-        """Test ProjectAgentView starts with no folder selected until user chooses one."""
-        from ui.components.project_view import ProjectAgentView
-        pv = ProjectAgentView()
-        self.assertIsNone(pv.workspace_path)
-        self.assertIn("None Selected", pv.path_lbl.text())
-        self.assertIn("Select Folder", pv.change_folder_btn.text())
-
-        # Test explicit folder selection
-        from pathlib import Path
-        pv.set_workspace(Path.cwd())
-        self.assertIsNotNone(pv.workspace_path)
-        self.assertTrue(pv.workspace_path.is_dir())
-        self.assertIn("New folder", pv.path_lbl.text())
-        self.assertEqual(pv.change_folder_btn.text(), "📁 Change Folder")
-
-        # Test model selector options
-        self.assertGreaterEqual(pv.model_combo.count(), 4)
-        self.assertIn("Auto Router", pv.model_combo.itemText(0))
-
-        # Test quick starter prompt setting
-        pv._set_task_prompt("Write unit tests for database module")
-        self.assertEqual(pv.task_input.toPlainText(), "Write unit tests for database module")
-
-        # Test step tracker labels
-        self.assertEqual(len(pv.step_labels), 4)
-
-        # Test signal existence
-        signal_received = []
-        pv.manage_models_requested.connect(lambda: signal_received.append(True))
-        pv.diag_connect_btn.click()
-        self.assertTrue(signal_received)
-
-        pv.deleteLater()
-
     def test_in_window_navigation_and_graphical_analytics(self):
         """Test MainWindow embeds SettingsView, AddModelsView, and AnalyticsView without dialogs."""
         from ui.main_window import MainWindow
@@ -126,33 +91,32 @@ class TestSidebarAndSettings(unittest.TestCase):
         from ui.components.add_models_view import AddModelsView
 
         win = MainWindow()
-        self.assertEqual(win.stack.count(), 9)
+        self.assertEqual(win.stack.count(), 8)
 
-        # Test index 6: SettingsView
-        self.assertIsInstance(win.stack.widget(6), SettingsView)
-        # Test index 7: AddModelsView
-        self.assertIsInstance(win.stack.widget(7), AddModelsView)
-        # Test index 8: AnalyticsView
-        self.assertIsInstance(win.stack.widget(8), AnalyticsView)
+        # Test embedded views exist and are registered
+        self.assertIsInstance(win.settings_view, SettingsView)
+        self.assertIsInstance(win.add_models_view, AddModelsView)
+        self.assertIsInstance(win.analytics_view, AnalyticsView)
+        self.assertIs(win.stack.widget(7), win.analytics_view)
 
-        # Test navigation to Settings stays on same window (index 6)
+        # Test navigation to Settings stays on same window
         win._handle_navigation("settings")
-        self.assertEqual(win.stack.currentIndex(), 6)
+        self.assertIs(win.stack.currentWidget(), win.settings_view)
 
         # Test back to chat
         win.settings_view.back_to_chat_requested.emit()
-        self.assertEqual(win.stack.currentIndex(), 0)
+        self.assertIs(win.stack.currentWidget(), win.home_container)
 
-        # Test navigation to Add AI Models stays on same window (index 7)
+        # Test navigation to Add AI Models stays on same window
         win._handle_navigation("api_keys")
-        self.assertEqual(win.stack.currentIndex(), 7)
+        self.assertIs(win.stack.currentWidget(), win.add_models_view)
 
         win.add_models_view.back_to_chat_requested.emit()
-        self.assertEqual(win.stack.currentIndex(), 0)
+        self.assertIs(win.stack.currentWidget(), win.home_container)
 
-        # Test navigation to Graphical Analytics stays on same window (index 8)
+        # Test navigation to Graphical Analytics stays on same window
         win._handle_navigation("usage")
-        self.assertEqual(win.stack.currentIndex(), 8)
+        self.assertIs(win.stack.currentWidget(), win.analytics_view)
 
         # Test graphical analytics components
         analytics = win.analytics_view

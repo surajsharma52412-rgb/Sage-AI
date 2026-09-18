@@ -24,7 +24,7 @@ from ui.components.message_bubble import (
     extract_thinking, format_markdown_to_html, ThinkingSection, MessageBubble
 )
 from .components import (
-    Sidebar, TopBar, ChatViewport, MessageInputBar, ProjectAgentView, SettingsDialog,
+    Sidebar, TopBar, ChatViewport, MessageInputBar, SettingsDialog,
     GeneralSettingsDialog, CodingIdeView, AutomationsView, MultiAgentView, KnowledgeView,
     SettingsView, AddModelsView, AnalyticsView, HomeDashboardView
 )
@@ -118,55 +118,50 @@ class MainWindow(QMainWindow):
         self.input_bar = MessageInputBar(self.chat_page)
         self.input_bar.submitted.connect(self._handle_message_submit)
         self.input_bar.cancelled.connect(self._handle_cancel)
-        self.input_bar.manage_models_requested.connect(lambda: self.stack.setCurrentIndex(7))
+        self.input_bar.manage_models_requested.connect(lambda: self._handle_navigation("api_keys"))
         chat_layout.addWidget(self.input_bar)
 
         self.home_container.addWidget(self.chat_page)  # Sub-index 1: Chat Stream
 
         self.stack.addWidget(self.home_container)  # Index 0: Home / Chat
 
-        # Page 1: Autonomous Project Agent View
-        self.project_view = ProjectAgentView(self)
-        self.project_view.manage_models_requested.connect(lambda: self.stack.setCurrentIndex(7))
-        self.stack.addWidget(self.project_view)  # Index 1: Projects
-
-        # Page 2: Coding Agent & IDE Workspace
+        # Page 1: Coding Agent & IDE Workspace
         self.coding_ide_view = CodingIdeView(parent=self)
         self.coding_ide_view.fullscreen_toggled.connect(self._toggle_ide_fullscreen)
         if hasattr(self.coding_ide_view, "home_requested"):
             self.coding_ide_view.home_requested.connect(lambda: self._handle_navigation("home"))
-        self.stack.addWidget(self.coding_ide_view)  # Index 2: Coding Agent / IDE
+        self.stack.addWidget(self.coding_ide_view)  # Coding Agent / IDE
 
-        # Page 3: AI Automations View
+        # Page 2: AI Automations View
         self.automations_view = AutomationsView(parent=self)
-        self.stack.addWidget(self.automations_view)  # Index 3: AI Automations
+        self.stack.addWidget(self.automations_view)  # AI Automations
 
-        # Page 4: Multi-Agent Hub View (Orchestrator + 7 Specialized Agents)
+        # Page 3: Multi-Agent Hub View (Orchestrator + 7 Specialized Agents)
         self.multi_agent_view = MultiAgentView(parent=self)
-        self.stack.addWidget(self.multi_agent_view)  # Index 4: Multi-Agent Hub
+        self.stack.addWidget(self.multi_agent_view)  # Multi-Agent Hub
 
-        # Page 5: Knowledge & Memory Center ("Teach Model / Tell Model to Remember")
+        # Page 4: Knowledge & Memory Center ("Teach Model / Tell Model to Remember")
         self.knowledge_view = KnowledgeView(parent=self)
-        self.stack.addWidget(self.knowledge_view)  # Index 5: Knowledge
+        self.stack.addWidget(self.knowledge_view)  # Knowledge
 
-        # Page 6: In-Window Settings View (Profile & Persona)
+        # Page 5: In-Window Settings View (Profile & Persona)
         self.settings_view = SettingsView(parent=self)
         self.settings_view.profile_updated.connect(self._on_profile_updated)
-        self.settings_view.back_to_chat_requested.connect(lambda: self.stack.setCurrentIndex(0))
-        self.settings_view.request_add_models.connect(lambda: self.stack.setCurrentIndex(7))
-        self.stack.addWidget(self.settings_view)  # Index 6: Settings
+        self.settings_view.back_to_chat_requested.connect(lambda: self._handle_navigation("chat"))
+        self.settings_view.request_add_models.connect(lambda: self._handle_navigation("api_keys"))
+        self.stack.addWidget(self.settings_view)  # Settings
 
-        # Page 7: In-Window Add & Connect AI Models View
+        # Page 6: In-Window Add & Connect AI Models View
         self.add_models_view = AddModelsView(parent=self)
         self.add_models_view.models_updated.connect(self.input_bar.refresh_models)
-        self.add_models_view.back_to_chat_requested.connect(lambda: self.stack.setCurrentIndex(0))
-        self.stack.addWidget(self.add_models_view)  # Index 7: Add AI Models
+        self.add_models_view.back_to_chat_requested.connect(lambda: self._handle_navigation("chat"))
+        self.stack.addWidget(self.add_models_view)  # Add AI Models
 
-        # Page 8: In-Window Graphical Analytics & Usage View
+        # Page 7: In-Window Graphical Analytics & Usage View
         self.analytics_view = AnalyticsView(parent=self)
-        self.analytics_view.back_to_chat_requested.connect(lambda: self.stack.setCurrentIndex(0))
-        self.analytics_view.request_add_models.connect(lambda: self.stack.setCurrentIndex(7))
-        self.stack.addWidget(self.analytics_view)  # Index 8: Analytics / Model Usage
+        self.analytics_view.back_to_chat_requested.connect(lambda: self._handle_navigation("chat"))
+        self.analytics_view.request_add_models.connect(lambda: self._handle_navigation("api_keys"))
+        self.stack.addWidget(self.analytics_view)  # Analytics / Model Usage
 
         right_layout.addWidget(self.stack, 1)
         root_layout.addWidget(right_container, 1)
@@ -236,55 +231,48 @@ class MainWindow(QMainWindow):
         self.sidebar.setVisible(True)
         self.top_bar.setVisible(True)
 
-        if nav_name == "coding_agent":
-            self.stack.setCurrentIndex(2)
-
         if nav_name == "home":
-            self.stack.setCurrentIndex(0)
+            self.stack.setCurrentWidget(self.home_container)
             self.home_container.setCurrentIndex(1)
             self.sidebar.set_active_nav("home")
             self.chat_viewport.clear_messages()
             self.chat_viewport.set_empty_state_visible(True)
         elif nav_name == "chat":
-            self.stack.setCurrentIndex(0)
+            self.stack.setCurrentWidget(self.home_container)
             self.home_container.setCurrentIndex(1)
             self.sidebar.set_active_nav("chat")
             if self.current_session_id:
                 self._load_session_messages(self.current_session_id)
         elif nav_name in ("image_gen", "image_generation"):
-            self.stack.setCurrentIndex(0)
+            self.stack.setCurrentWidget(self.home_container)
             self.home_container.setCurrentIndex(1)
             self.sidebar.set_active_nav("chat")
             if hasattr(self, "input_bar"):
                 self.input_bar.image_btn.setChecked(True)
         elif nav_name == "multi_agent":
-            self.stack.setCurrentIndex(4)
+            self.stack.setCurrentWidget(self.multi_agent_view)
             self.sidebar.set_active_nav("multi_agent")
         elif nav_name == "coding_agent":
-            self.stack.setCurrentIndex(2)
+            self.stack.setCurrentWidget(self.coding_ide_view)
             self.sidebar.set_active_nav("coding_agent")
         elif nav_name == "automations":
-            self.stack.setCurrentIndex(3)
+            self.stack.setCurrentWidget(self.automations_view)
             self.sidebar.set_active_nav("automations")
-        elif nav_name == "projects":
-            self.stack.setCurrentIndex(1)
-            self.project_view._refresh_tree()
-            self.sidebar.set_active_nav("projects")
         elif nav_name == "knowledge":
-            self.stack.setCurrentIndex(5)
+            self.stack.setCurrentWidget(self.knowledge_view)
             self.knowledge_view.refresh_memories()
             self.sidebar.set_active_nav("knowledge")
         elif nav_name == "usage":
             self.analytics_view.refresh_data()
-            self.stack.setCurrentIndex(8)
+            self.stack.setCurrentWidget(self.analytics_view)
             if hasattr(self, "settings_view") and self.settings_view:
                 self.settings_view.tabs.setCurrentIndex(1)
                 self.settings_view.refresh_usage()
         elif nav_name == "settings":
-            self.stack.setCurrentIndex(6)
+            self.stack.setCurrentWidget(self.settings_view)
             self.sidebar.set_active_nav("settings")
         elif nav_name == "api_keys":
-            self.stack.setCurrentIndex(7)
+            self.stack.setCurrentWidget(self.add_models_view)
 
     def _handle_home_prompt_submit(self, prompt: str):
         """Switches to active chat view and sends the prompt submitted from Home dashboard."""

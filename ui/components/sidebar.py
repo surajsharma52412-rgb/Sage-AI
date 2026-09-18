@@ -130,7 +130,7 @@ class Sidebar(QWidget):
     """Left navigation sidebar with interactive chat history and navigation items."""
 
     new_chat_requested = Signal()
-    nav_changed = Signal(str)  # 'home', 'chat', 'multi_agent', 'image_gen', 'coding_agent', 'automations', 'projects', 'knowledge', 'settings', 'api_keys'
+    nav_changed = Signal(str)  # 'home', 'chat', 'multi_agent', 'image_gen', 'coding_agent', 'automations', 'knowledge', 'settings', 'api_keys'
     profile_clicked = Signal()
     chat_session_selected = Signal(str)
     chat_session_deleted = Signal(str)
@@ -233,7 +233,6 @@ class Sidebar(QWidget):
             ("multi_agent", "🤖  Multi-Agent Hub"),
             ("coding_agent", "</>  Coding Agent"),
             ("automations", "⚡  Automation"),
-            ("projects", "📁  Projects"),
             ("knowledge", "📖  Knowledge Base"),
             ("settings", "⚙  Settings"),
             ("api_keys", "✨  Add Models"),

@@ -315,7 +315,7 @@ class CodeEditor(QPlainTextEdit):
         current_block_number = self.textCursor().blockNumber()
 
         font = self.font()
-        font.setPointSize(9.5)
+        font.setPointSize(10)
         painter.setFont(font)
 
         while block.isValid() and top <= event.rect().bottom():
@@ -325,10 +325,10 @@ class CodeEditor(QPlainTextEdit):
 
                 if is_current:
                     painter.setPen(QColor("#c6c6c6"))
-                    painter.setFont(QFont("Consolas", 9.5, QFont.Bold))
+                    painter.setFont(QFont("Consolas", 10, QFont.Bold))
                 else:
                     painter.setPen(QColor("#858585"))
-                    painter.setFont(QFont("Consolas", 9.5))
+                    painter.setFont(QFont("Consolas", 10))
 
                 painter.drawText(
                     0,

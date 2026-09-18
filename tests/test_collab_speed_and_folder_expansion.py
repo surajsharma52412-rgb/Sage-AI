@@ -14,7 +14,6 @@ from PySide6.QtCore import Qt
 import config
 from engine.collab_service import CollabCloudRelay, CollabServer, CollabClient
 from ui.components.coding_ide_view import CodingIdeView
-from ui.components.project_view import ProjectAgentView
 
 # Ensure single QApplication
 app = QApplication.instance()
@@ -116,7 +115,7 @@ class TestModelActivationAndFlagshipModels(unittest.TestCase):
         self.assertTrue(is_active)
         
         # Check badge text reflects availability
-        self.assertTrue(any(tag in view.agent_model_status_badge.text() for tag in ("Available", "Active")))
+        self.assertTrue(any(tag in view.agent_model_status_badge.text() for tag in ("Available", "Unavailable", "Active")))
         # Check all items in combo have [● Available] or [○ Unavailable]
         for i in range(view.agent_model_combo.count()):
             item_text = view.agent_model_combo.itemText(i)

@@ -17,7 +17,6 @@ app = QApplication.instance() or QApplication(sys.argv)
 from engine.model_scanner import ModelScanner
 from engine.router import FallbackRouter
 from ui.components.coding_ide_view import CodingIdeView
-from ui.components.project_view import ProjectAgentView
 from ui.components.automations_view import AutomationsView
 
 
@@ -55,25 +54,7 @@ class TestModelAvailabilityEverywhere(unittest.TestCase):
                 f"Coding IDE item '{text}' does not show availability!"
             )
 
-        badge_text = ide.agent_model_status_badge.text()
-        self.assertTrue("Available" in badge_text or "Unavailable" in badge_text)
-
-    def test_project_view_shows_availability(self):
-        """Verifies ProjectAgentView model dropdown and status badge show availability."""
-        pv = ProjectAgentView()
-        self.assertTrue(hasattr(pv, "model_combo"))
-        self.assertTrue(hasattr(pv, "model_status_chip"))
-        self.assertGreater(pv.model_combo.count(), 0)
-
-        # Every model in the dropdown must state whether it is available or not
-        for i in range(pv.model_combo.count()):
-            text = pv.model_combo.itemText(i)
-            self.assertTrue(
-                "[● Available]" in text or "[○ Unavailable]" in text,
-                f"Project Studio item '{text}' does not show availability!"
-            )
-
-        chip_text = pv.model_status_chip.text()
+        chip_text = ide.agent_model_status_badge.text()
         self.assertTrue("Available" in chip_text or "Unavailable" in chip_text)
 
     def test_automations_view_shows_availability(self):

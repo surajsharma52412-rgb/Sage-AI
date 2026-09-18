@@ -1,6 +1,16 @@
-data/sage_ai.db
-.sage_cache/
+# Python cache
 __pycache__/
 *.pyc
 
-.sage_cache/*.db
+# Sage cache
+.sage_cache/
+
+# Virtual environment
+.venv/
+
+# Environment variables / secrets
+.env
+*.env
+
+# Local database
+data/sage_ai.db

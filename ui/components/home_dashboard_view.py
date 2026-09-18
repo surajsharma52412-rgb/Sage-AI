@@ -545,7 +545,7 @@ class HomeDashboardView(QWidget):
         view_all_projects = QPushButton("View All")
         view_all_projects.setCursor(Qt.PointingHandCursor)
         view_all_projects.setStyleSheet("color: #00D1FF; font-size: 11px; font-weight: 600; background: transparent; border: none;")
-        view_all_projects.clicked.connect(lambda: self.navigate_requested.emit("projects"))
+        view_all_projects.clicked.connect(lambda: self.navigate_requested.emit("coding_agent"))
         pc_hdr.addWidget(view_all_projects)
         pc_layout.addLayout(pc_hdr)
 
