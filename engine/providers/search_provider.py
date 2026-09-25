@@ -1,5 +1,5 @@
 """
-Search Provider for Sage AI (Lunar Engine).
+Search Provider for Sage AI.
 Extracts real-time web evidence using Tavily API with DuckDuckGo fallback.
 """
 import time

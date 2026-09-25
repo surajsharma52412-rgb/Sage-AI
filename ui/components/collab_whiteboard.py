@@ -1,5 +1,5 @@
 """
-Interactive Collaborative Whiteboard for Sage AI (Lunar Engine).
+Interactive Collaborative Whiteboard for Sage AI.
 Allows real-time pair sketching, system architecture diagramming, and visual brainstorming.
 """
 import time
@@ -483,12 +483,12 @@ class CollabWhiteboardWidget(QWidget):
         hdr_l.addWidget(wb_icon)
 
         hdr_title = QLabel("Whiteboard")
-        hdr_title.setStyleSheet("color: #f4f5fb; font-size: 11.5px; font-weight: 700;")
+        hdr_title.setStyleSheet("color: #f4f5fb; font-size: 12px; font-weight: 700;")
         hdr_l.addWidget(hdr_title)
 
         # Peer activity indicator
         self.activity_tag = QLabel("")
-        self.activity_tag.setStyleSheet("color: #38bdf8; font-size: 9.5px; font-style: italic;")
+        self.activity_tag.setStyleSheet("color: #38bdf8; font-size: 10px; font-style: italic;")
         hdr_l.addWidget(self.activity_tag)
 
         hdr_l.addStretch()
@@ -526,7 +526,7 @@ class CollabWhiteboardWidget(QWidget):
                     border: 1px solid #273449;
                     border-radius: 4px;
                     padding: 2px 5px;
-                    font-size: 9.5px;
+                    font-size: 10px;
                     font-weight: 600;
                 }
                 QPushButton:hover {

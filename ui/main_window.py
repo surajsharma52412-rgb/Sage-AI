@@ -1,5 +1,5 @@
 """
-Main Window for Sage AI (Lunar Engine).
+Main Window for Sage AI.
 Coordinates the TopBar, Sidebar, Chat Viewport, Project Agent View, and Settings Modal.
 Direct singleton service invocation inside QThread workers with Qt Signal/Slot communication.
 """
@@ -7,16 +7,17 @@ import os
 import getpass
 import time
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QStackedWidget,
-    QMessageBox, QApplication
+    QMessageBox, QApplication, QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
+from ui.components.animated_stack import AnimatedStackedWidget
 
 from database.db_manager import get_db
 from workers.chat_worker import ChatWorker
@@ -26,8 +27,31 @@ from ui.components.message_bubble import (
 from .components import (
     Sidebar, TopBar, ChatViewport, MessageInputBar, SettingsDialog,
     GeneralSettingsDialog, CodingIdeView, AutomationsView, MultiAgentView, KnowledgeView,
-    SettingsView, AddModelsView, AnalyticsView, HomeDashboardView
+    SettingsView, AddModelsView, AnalyticsView, HomeDashboardView,
+    GlobalRankingView
 )
+
+
+class StartupModelTraceWorker(QThread):
+    """Background worker that traces and syncs all API key models on application startup."""
+    trace_finished = Signal(dict)
+
+    def run(self):
+        try:
+            from engine.model_scanner import ModelScanner
+            result = ModelScanner.trace_and_sync_all_configured_providers()
+            self.trace_finished.emit(result)
+        except Exception as e:
+            logger.warning("Startup model trace encountered an error: %s", e)
+            self.trace_finished.emit({
+                "error": str(e),
+                "total_models": 0,
+                "added_free": [],
+                "added_paid": [],
+                "removed": [],
+                "changed": [],
+                "scanned_providers": []
+            })
 
 
 class MainWindow(QMainWindow):
@@ -60,6 +84,30 @@ class MainWindow(QMainWindow):
         # Launch directly into Home section as default
         self._handle_navigation("home")
 
+        # Background trace all API key models on startup (trace additions, removals, changes)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(600, self._start_startup_model_trace)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_has_animated_open", False):
+            self._has_animated_open = True
+            self._animate_window_open()
+
+    def _animate_window_open(self):
+        """Hardware-accelerated window open fade without CPU offscreen rasterization."""
+        try:
+            self.setWindowOpacity(0.0)
+            anim = QPropertyAnimation(self, b"windowOpacity", self)
+            anim.setDuration(160)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QEasingCurve.OutCubic)
+            self._open_anim = anim
+            anim.start()
+        except Exception:
+            self.setWindowOpacity(1.0)
+
     def _init_ui(self):
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -91,11 +139,11 @@ class MainWindow(QMainWindow):
         self.top_bar.search_submitted.connect(self._handle_global_search)
         right_layout.addWidget(self.top_bar)
 
-        # Stacked Views
-        self.stack = QStackedWidget(right_container)
+        # Stacked Views with Fluid Page Transition Animations
+        self.stack = AnimatedStackedWidget(right_container, duration=150)
 
         # Page 0: Home / Chat Container with sub-stack
-        self.home_container = QStackedWidget()
+        self.home_container = AnimatedStackedWidget(duration=150)
 
         # Sub-page 0: Home Dashboard View (Matches exact reference picture)
         self.home_view = HomeDashboardView(self)
@@ -119,6 +167,7 @@ class MainWindow(QMainWindow):
         self.input_bar.submitted.connect(self._handle_message_submit)
         self.input_bar.cancelled.connect(self._handle_cancel)
         self.input_bar.manage_models_requested.connect(lambda: self._handle_navigation("api_keys"))
+        self.input_bar.global_ranking_requested.connect(lambda: self._handle_navigation("auto_router"))
         chat_layout.addWidget(self.input_bar)
 
         self.home_container.addWidget(self.chat_page)  # Sub-index 1: Chat Stream
@@ -163,6 +212,12 @@ class MainWindow(QMainWindow):
         self.analytics_view.request_add_models.connect(lambda: self._handle_navigation("api_keys"))
         self.stack.addWidget(self.analytics_view)  # Analytics / Model Usage
 
+        # Page 8: AI Auto Router Global Queue Dashboard (Universal Model Ranking)
+        self.global_ranking_view = GlobalRankingView(parent=self)
+        self.global_ranking_view.back_to_chat_requested.connect(lambda: self._handle_navigation("chat"))
+        self.global_ranking_view.request_add_models.connect(lambda: self._handle_navigation("api_keys"))
+        self.stack.addWidget(self.global_ranking_view)  # Global Model Ranking Dashboard
+
         right_layout.addWidget(self.stack, 1)
         root_layout.addWidget(right_container, 1)
 
@@ -173,9 +228,10 @@ class MainWindow(QMainWindow):
         self.esc_shortcut = QShortcut(QKeySequence(Qt.Key_Escape), self)
         self.esc_shortcut.activated.connect(self._on_esc_pressed)
 
-        # Apply saved user theme
+        # Apply saved user theme if non-default
         saved_theme = self.db.get_setting("app_theme_key", "cyberpunk")
-        self._apply_theme(saved_theme)
+        if saved_theme and saved_theme.lower() != "cyberpunk":
+            self._apply_theme(saved_theme)
 
     def _init_sessions(self):
         sessions = self.db.get_sessions()
@@ -199,7 +255,6 @@ class MainWindow(QMainWindow):
 
         # Load chat history into sidebar
         self.sidebar.load_sessions(sessions)
-        self._load_session_messages(self.current_session_id)
         self.stack.setCurrentIndex(0)
         self.home_container.setCurrentIndex(1)
         self.sidebar.set_active_nav("home")
@@ -224,6 +279,65 @@ class MainWindow(QMainWindow):
             if hasattr(self, "coding_ide_view") and self.coding_ide_view:
                 self.coding_ide_view.update_profile_name(user_name)
 
+    def _start_startup_model_trace(self):
+        """Launches non-blocking background model scan and diff tracer."""
+        self._model_trace_worker = StartupModelTraceWorker(parent=self)
+        self._model_trace_worker.trace_finished.connect(self._on_startup_model_trace_finished)
+        self._model_trace_worker.start()
+
+    def _on_startup_model_trace_finished(self, result: Dict[str, Any]):
+        """Handles completion of the startup model trace."""
+        added_free = result.get("added_free", [])
+        added_paid = result.get("added_paid", [])
+        removed = result.get("removed", [])
+        changed = result.get("changed", [])
+        total_models = result.get("total_models", 0)
+        scanned_provs = result.get("scanned_providers", [])
+
+        logger.info(
+            "Startup Model Trace Completed: %d models across %s. "
+            "+%d free added, +%d paid added, -%d removed, ~%d changed.",
+            total_models, scanned_provs, len(added_free), len(added_paid), len(removed), len(changed)
+        )
+
+        # Refresh UI models across the app
+        if hasattr(self, "input_bar") and hasattr(self.input_bar, "refresh_models"):
+            self.input_bar.refresh_models()
+        if hasattr(self, "coding_ide_view") and hasattr(self.coding_ide_view, "_refresh_agent_models"):
+            self.coding_ide_view._refresh_agent_models()
+
+        # If any new free models or changes occurred, show trace badge in TopBar
+        if added_free or removed or changed:
+            msg_parts = []
+            tooltip_lines = ["<b>Model Trace Report (Startup Scan):</b>"]
+            if added_free:
+                msg_parts.append(f"+{len(added_free)} Free Added")
+                tooltip_lines.append(f"<br><b>New Free Models ({len(added_free)}):</b>")
+                for m in added_free[:5]:
+                    tooltip_lines.append(f"• {m.get('display_name')} ({m.get('provider_id')})")
+                if len(added_free) > 5:
+                    tooltip_lines.append(f"• ... and {len(added_free)-5} more")
+            if removed:
+                msg_parts.append(f"-{len(removed)} Removed")
+                tooltip_lines.append(f"<br><b>Discontinued Models ({len(removed)}):</b>")
+                for m in removed[:3]:
+                    tooltip_lines.append(f"• {m.get('display_name')} ({m.get('provider_id')})")
+            if changed:
+                msg_parts.append(f"~{len(changed)} Changed")
+                tooltip_lines.append(f"<br><b>Changed Models ({len(changed)}):</b>")
+                for m in changed[:3]:
+                    tooltip_lines.append(f"• {m.get('display_name')}: {m.get('change_summary')}")
+
+            summary_badge_text = " • ".join(msg_parts)
+            if hasattr(self, "top_bar") and hasattr(self.top_bar, "show_trace_status"):
+                self.top_bar.show_trace_status(f"⚡ {summary_badge_text}", tooltip="<br>".join(tooltip_lines))
+
+    def _switch_page(self, widget: QWidget):
+        """Switches main stack view instantly with zero latency or rasterization lag."""
+        if self.stack.currentWidget() == widget:
+            return
+        self.stack.setCurrentWidget(widget)
+
     def _handle_navigation(self, nav_name: str):
         if hasattr(self, "coding_ide_view") and self.coding_ide_view.is_fullscreen and nav_name != "coding_agent":
             self.coding_ide_view.toggle_fullscreen(False)
@@ -232,47 +346,50 @@ class MainWindow(QMainWindow):
         self.top_bar.setVisible(True)
 
         if nav_name == "home":
-            self.stack.setCurrentWidget(self.home_container)
+            self._switch_page(self.home_container)
             self.home_container.setCurrentIndex(1)
             self.sidebar.set_active_nav("home")
             self.chat_viewport.clear_messages()
             self.chat_viewport.set_empty_state_visible(True)
         elif nav_name == "chat":
-            self.stack.setCurrentWidget(self.home_container)
+            self._switch_page(self.home_container)
             self.home_container.setCurrentIndex(1)
             self.sidebar.set_active_nav("chat")
             if self.current_session_id:
                 self._load_session_messages(self.current_session_id)
         elif nav_name in ("image_gen", "image_generation"):
-            self.stack.setCurrentWidget(self.home_container)
+            self._switch_page(self.home_container)
             self.home_container.setCurrentIndex(1)
             self.sidebar.set_active_nav("chat")
             if hasattr(self, "input_bar"):
                 self.input_bar.image_btn.setChecked(True)
         elif nav_name == "multi_agent":
-            self.stack.setCurrentWidget(self.multi_agent_view)
+            self._switch_page(self.multi_agent_view)
             self.sidebar.set_active_nav("multi_agent")
         elif nav_name == "coding_agent":
-            self.stack.setCurrentWidget(self.coding_ide_view)
+            self._switch_page(self.coding_ide_view)
             self.sidebar.set_active_nav("coding_agent")
         elif nav_name == "automations":
-            self.stack.setCurrentWidget(self.automations_view)
+            self._switch_page(self.automations_view)
             self.sidebar.set_active_nav("automations")
         elif nav_name == "knowledge":
-            self.stack.setCurrentWidget(self.knowledge_view)
-            self.knowledge_view.refresh_memories()
+            self._switch_page(self.knowledge_view)
             self.sidebar.set_active_nav("knowledge")
         elif nav_name == "usage":
             self.analytics_view.refresh_data()
-            self.stack.setCurrentWidget(self.analytics_view)
+            self._switch_page(self.analytics_view)
             if hasattr(self, "settings_view") and self.settings_view:
                 self.settings_view.tabs.setCurrentIndex(1)
                 self.settings_view.refresh_usage()
         elif nav_name == "settings":
-            self.stack.setCurrentWidget(self.settings_view)
+            self._switch_page(self.settings_view)
             self.sidebar.set_active_nav("settings")
         elif nav_name == "api_keys":
-            self.stack.setCurrentWidget(self.add_models_view)
+            self._switch_page(self.add_models_view)
+        elif nav_name == "auto_router":
+            self.global_ranking_view.refresh_ranking()
+            self._switch_page(self.global_ranking_view)
+            self.sidebar.set_active_nav("auto_router")
 
     def _handle_home_prompt_submit(self, prompt: str):
         """Switches to active chat view and sends the prompt submitted from Home dashboard."""
@@ -347,14 +464,16 @@ class MainWindow(QMainWindow):
         if hasattr(self, "coding_ide_view") and self.coding_ide_view.is_fullscreen:
             self._toggle_ide_fullscreen(False)
 
-    def _apply_theme(self, theme_key: str):
+    def _apply_theme(self, theme_key: str, force: bool = False):
         """Applies dynamic QSS theme globally and updates header accent, background, and logos."""
         from ui.styles.qss_theme import get_theme_qss, THEME_PALETTES
         pal = THEME_PALETTES.get(theme_key.lower()) or THEME_PALETTES["cyberpunk"]
         app = QApplication.instance()
-        if app:
+        current_theme = getattr(app, "_current_theme_key", None)
+        if app and (force or current_theme != theme_key):
             app.setStyleSheet(get_theme_qss(theme_key))
-        self.db.set_setting("app_theme_key", theme_key)
+            app._current_theme_key = theme_key
+            self.db.set_setting("app_theme_key", theme_key)
         self.top_bar.update_theme_accent(pal["primary"])
         if hasattr(self, "sidebar") and self.sidebar:
             self.sidebar.update_theme(pal)
@@ -379,7 +498,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "About Sage AI",
-            "Sage AI (Lunar Engine)\n\n"
+            "Sage AI\n\n"
             "• Auto-routing waterfall between cloud models & local Ollama\n"
             "• Autonomous Project Coding Agent\n"
             "• Offline Chronometer & Knowledge Engine\n\n"
@@ -516,6 +635,12 @@ class MainWindow(QMainWindow):
             role="assistant",
             model=selected_model or "Auto Router"
         )
+        is_image_request = (
+            (selected_model and selected_model.startswith("image:"))
+            or (prompt and prompt.lower().startswith(("generate an image", "create an image", "generate image", "create image", "generate a picture", "generate a photo")))
+        )
+        if is_image_request and self.streaming_bubble:
+            self.streaming_bubble.show_image_loading(prompt)
         self._in_thinking = False
         self._thinking_buffer = ""
         self._response_buffer = ""
@@ -590,7 +715,12 @@ class MainWindow(QMainWindow):
                 self.streaming_bubble.append_live_response_chunk(chunk)
                 self._response_buffer += chunk
 
-            self.chat_viewport.scroll_to_bottom()
+            if not hasattr(self, "_stream_scroll_timer"):
+                self._stream_scroll_timer = QTimer(self)
+                self._stream_scroll_timer.setSingleShot(True)
+                self._stream_scroll_timer.timeout.connect(lambda: self.chat_viewport.scroll_to_bottom(smooth=False))
+            if not self._stream_scroll_timer.isActive():
+                self._stream_scroll_timer.start(50)
         except Exception as e:
             logger.warning("Token streaming error: %s", e)
 
@@ -640,20 +770,14 @@ class MainWindow(QMainWindow):
 
             if self.streaming_bubble:
                 if result.get("is_image") and result.get("image_data"):
-                    # Generated image render replaces bubble
+                    # Smoothly transition streaming shimmer card to generated image with animation
                     if hasattr(self.streaming_bubble, "thinking_widget") and self.streaming_bubble.thinking_widget:
                         self.streaming_bubble.thinking_widget.finish_live()
-                    self.streaming_bubble.deleteLater()
-                    self.chat_viewport.add_message(
-                        role="assistant",
-                        content=final_text,
-                        model=result.get("model_name"),
-                        timestamp=msg["timestamp"],
-                        citations=result.get("citations"),
-                        is_image=True,
+                    self.streaming_bubble.model = result.get("model_name")
+                    self.streaming_bubble.set_generated_image(
                         image_data=result.get("image_data"),
-                        latency_ms=result.get("latency_ms"),
-                        thinking=final_thinking
+                        content=final_text,
+                        latency_ms=result.get("latency_ms")
                     )
                 else:
                     self.streaming_bubble.model = result.get("model_name")
@@ -663,6 +787,11 @@ class MainWindow(QMainWindow):
                     html = format_markdown_to_html(final_text)
                     self.streaming_bubble.text_browser.setHtml(html)
                     self.streaming_bubble._adjust_browser_height()
+
+                    # Update telemetry badge if available
+                    telem = result.get("metadata") or {}
+                    if telem and "global_rank" in telem:
+                        self.streaming_bubble.set_telemetry(telem)
 
                     # If thinking arrived in batch and section not yet added
                     if final_thinking and not self.streaming_bubble.thinking_widget:
@@ -681,7 +810,8 @@ class MainWindow(QMainWindow):
                     is_image=result.get("is_image", False),
                     image_data=result.get("image_data"),
                     latency_ms=result.get("latency_ms"),
-                    thinking=final_thinking
+                    thinking=final_thinking,
+                    telemetry=result.get("metadata")
                 )
 
             self.chat_viewport.scroll_to_bottom()

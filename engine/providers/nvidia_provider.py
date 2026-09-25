@@ -1,5 +1,5 @@
 """
-NVIDIA NIM Provider for Sage AI (Lunar Engine).
+NVIDIA NIM Provider for Sage AI.
 High-performance accelerated inference on NVIDIA infrastructure.
 """
 import json

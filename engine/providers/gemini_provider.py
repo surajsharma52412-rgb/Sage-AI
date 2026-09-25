@@ -1,5 +1,5 @@
 """
-Google Gemini Provider for Sage AI (Lunar Engine).
+Google Gemini Provider for Sage AI.
 REST integration with Google's Gemini Flash models.
 """
 import time

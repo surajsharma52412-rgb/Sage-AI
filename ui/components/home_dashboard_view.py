@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QLineEdit, QComboBox, QScrollArea, QFileDialog
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QPixmap, QFont
 
 from database.db_manager import get_db
@@ -94,7 +94,7 @@ class HomeDashboardView(QWidget):
 
         # Subtitle: Think. Create. Automate. With Sage AI.
         motto_lbl = QLabel("Think. Create. Automate. With Sage AI.")
-        motto_lbl.setStyleSheet("color: #94A3B8; font-size: 13.5px; font-weight: 500; background: transparent; border: none;")
+        motto_lbl.setStyleSheet("color: #94A3B8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         hero_text_col.addWidget(motto_lbl)
 
         hero_layout.addLayout(hero_text_col, 1)
@@ -189,7 +189,7 @@ class HomeDashboardView(QWidget):
             c_layout.addWidget(t_lbl)
 
             d_lbl = QLabel(desc)
-            d_lbl.setStyleSheet("color: #94A3B8; font-size: 10.5px; line-height: 1.2; background: transparent; border: none;")
+            d_lbl.setStyleSheet("color: #94A3B8; font-size: 11px; line-height: 1.2; background: transparent; border: none;")
             c_layout.addWidget(d_lbl)
 
             # Arrow button at bottom right
@@ -253,7 +253,7 @@ class HomeDashboardView(QWidget):
                         border: 1px solid rgba(0, 209, 255, 0.4);
                         border-radius: 8px;
                         padding: 6px 14px;
-                        font-size: 11.5px;
+                        font-size: 12px;
                         font-weight: 700;
                     }
                 """)
@@ -265,7 +265,7 @@ class HomeDashboardView(QWidget):
                         border: none;
                         border-radius: 8px;
                         padding: 6px 12px;
-                        font-size: 11.5px;
+                        font-size: 12px;
                         font-weight: 500;
                     }
                     QPushButton:hover {
@@ -476,7 +476,7 @@ class HomeDashboardView(QWidget):
 
         ac_hdr = QHBoxLayout()
         ac_title = QLabel("AI Agents")
-        ac_title.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 700; background: transparent; border: none;")
+        ac_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700; background: transparent; border: none;")
         ac_hdr.addWidget(ac_title)
         ac_hdr.addStretch()
 
@@ -507,7 +507,7 @@ class HomeDashboardView(QWidget):
             info_col = QVBoxLayout()
             info_col.setSpacing(1)
             n_lbl = QLabel(name)
-            n_lbl.setStyleSheet("color: #F8FAFC; font-size: 11.5px; font-weight: 600; background: transparent; border: none;")
+            n_lbl.setStyleSheet("color: #F8FAFC; font-size: 12px; font-weight: 600; background: transparent; border: none;")
             info_col.addWidget(n_lbl)
 
             d_lbl = QLabel(desc)
@@ -516,7 +516,7 @@ class HomeDashboardView(QWidget):
             row.addLayout(info_col, 1)
 
             st_lbl = QLabel(f"● {status}")
-            st_lbl.setStyleSheet(f"color: {dot_col}; font-size: 10.5px; font-weight: 600; background: transparent; border: none;")
+            st_lbl.setStyleSheet(f"color: {dot_col}; font-size: 11px; font-weight: 600; background: transparent; border: none;")
             row.addWidget(st_lbl)
 
             ac_layout.addLayout(row)
@@ -538,7 +538,7 @@ class HomeDashboardView(QWidget):
 
         pc_hdr = QHBoxLayout()
         pc_title = QLabel("Recent Projects")
-        pc_title.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 700; background: transparent; border: none;")
+        pc_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700; background: transparent; border: none;")
         pc_hdr.addWidget(pc_title)
         pc_hdr.addStretch()
 
@@ -567,11 +567,11 @@ class HomeDashboardView(QWidget):
             p_col = QVBoxLayout()
             p_col.setSpacing(1)
             t_lbl = QLabel(p_title)
-            t_lbl.setStyleSheet("color: #F8FAFC; font-size: 11.5px; font-weight: 600; background: transparent; border: none;")
+            t_lbl.setStyleSheet("color: #F8FAFC; font-size: 12px; font-weight: 600; background: transparent; border: none;")
             p_col.addWidget(t_lbl)
 
             tm_lbl = QLabel(p_time)
-            tm_lbl.setStyleSheet("color: #64748B; font-size: 9.5px; background: transparent; border: none;")
+            tm_lbl.setStyleSheet("color: #64748B; font-size: 10px; background: transparent; border: none;")
             p_col.addWidget(tm_lbl)
             row.addLayout(p_col, 1)
 
@@ -594,7 +594,7 @@ class HomeDashboardView(QWidget):
 
         ic_hdr = QHBoxLayout()
         ic_title = QLabel("Image Generation")
-        ic_title.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 700; background: transparent; border: none;")
+        ic_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700; background: transparent; border: none;")
         ic_hdr.addWidget(ic_title)
         ic_hdr.addStretch()
 
@@ -664,7 +664,7 @@ class HomeDashboardView(QWidget):
                 border: none;
                 border-radius: 6px;
                 padding: 5px 8px;
-                font-size: 10.5px;
+                font-size: 11px;
                 font-weight: 700;
             }
             QPushButton:hover {
@@ -732,7 +732,7 @@ class HomeDashboardView(QWidget):
                         border: 1px solid rgba(0, 209, 255, 0.4);
                         border-radius: 8px;
                         padding: 6px 14px;
-                        font-size: 11.5px;
+                        font-size: 12px;
                         font-weight: 700;
                     }
                 """)
@@ -744,7 +744,7 @@ class HomeDashboardView(QWidget):
                         border: none;
                         border-radius: 8px;
                         padding: 6px 12px;
-                        font-size: 11.5px;
+                        font-size: 12px;
                         font-weight: 500;
                     }
                     QPushButton:hover {
@@ -777,6 +777,32 @@ class HomeDashboardView(QWidget):
         model = self.model_combo.currentText()
         ratio = self.ratio_combo.currentText()
         if prompt:
+            self.img_prompt_input.clear()
+            self.gen_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #00E6FF;
+                    color: #0A0F14;
+                    border: 2px solid #FFFFFF;
+                    border-radius: 6px;
+                    padding: 5px 8px;
+                    font-size: 11px;
+                    font-weight: 800;
+                }
+            """)
+            QTimer.singleShot(250, lambda: self.gen_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #00D1FF;
+                    color: #0A0F14;
+                    border: none;
+                    border-radius: 6px;
+                    padding: 5px 8px;
+                    font-size: 11px;
+                    font-weight: 700;
+                }
+                QPushButton:hover {
+                    background-color: #00BBE6;
+                }
+            """))
             self.generate_image_requested.emit(prompt, model, ratio)
         else:
             self.navigate_requested.emit("image_gen")

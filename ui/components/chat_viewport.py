@@ -1,5 +1,5 @@
 """
-Chat Viewport Component for Sage AI (Lunar Engine).
+Chat Viewport Component for Sage AI.
 Matches the reference design:
 - Planetary space horizon background with radiant emerald glow
 - Centered floating Sage logo
@@ -13,9 +13,9 @@ from typing import List, Dict, Any, Optional
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea, QFrame, QPushButton, QSizePolicy
+    QScrollArea, QFrame, QPushButton, QSizePolicy, QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QPointF
+from PySide6.QtCore import Qt, Signal, QTimer, QPointF, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QPixmap, QPainter, QRadialGradient, QColor, QPen, QPainterPath
 
 from .message_bubble import MessageBubble
@@ -85,7 +85,7 @@ class ModernActionCard(QFrame):
             }
             QLabel#cardMainDesc {
                 color: #94A3B8;
-                font-size: 11.5px;
+                font-size: 12px;
                 line-height: 1.3;
             }
             QPushButton#cardArrowBtn {
@@ -240,7 +240,7 @@ class ChatViewport(QWidget):
         hero_text_col.addWidget(self.greeting_title)
 
         motto_lbl = QLabel("Think. Create. Automate. With Sage AI.")
-        motto_lbl.setStyleSheet("color: #94A3B8; font-size: 13.5px; font-weight: 500; background: transparent; border: none;")
+        motto_lbl.setStyleSheet("color: #94A3B8; font-size: 14px; font-weight: 500; background: transparent; border: none;")
         hero_text_col.addWidget(motto_lbl)
 
         hero_layout.addLayout(hero_text_col, 1)
@@ -405,7 +405,8 @@ class ChatViewport(QWidget):
         else:
             self.content_layout.addWidget(bubble)
 
-        self.scroll_to_bottom()
+        self._animate_bubble_entrance(bubble)
+        self.scroll_to_bottom(smooth=True, force=True)
         return bubble
 
     def add_message(
@@ -420,7 +421,8 @@ class ChatViewport(QWidget):
         latency_ms: Optional[float] = None,
         thinking: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
-        username: Optional[str] = None
+        username: Optional[str] = None,
+        telemetry: Optional[Dict[str, Any]] = None
     ) -> MessageBubble:
         self.set_empty_state_visible(False)
 
@@ -435,7 +437,8 @@ class ChatViewport(QWidget):
             latency_ms=latency_ms,
             thinking=thinking,
             attachments=attachments,
-            username=username
+            username=username,
+            telemetry=telemetry
         )
 
         idx = self.content_layout.indexOf(self.working_panel)
@@ -444,19 +447,38 @@ class ChatViewport(QWidget):
         else:
             self.content_layout.addWidget(bubble)
 
-        self.scroll_to_bottom()
+        self._animate_bubble_entrance(bubble)
+        self.scroll_to_bottom(smooth=True, force=True)
         return bubble
 
-    def scroll_to_bottom(self):
+    def _animate_bubble_entrance(self, bubble: QWidget):
+        """Ultra-fast, zero-lag message entrance preserving native subpixel text clarity."""
+        bubble.show()
+
+    def scroll_to_bottom(self, smooth: bool = True, force: bool = False):
+        """
+        Scrolls viewport to bottom.
+        If user has scrolled up to inspect previous responses (> 160px), does not forcibly hijack view unless force=True.
+        """
         def _do_scroll():
             try:
                 if hasattr(self, "scroll_area") and self.scroll_area:
                     bar = self.scroll_area.verticalScrollBar()
                     if bar:
-                        bar.setValue(bar.maximum())
+                        target = bar.maximum()
+                        current = bar.value()
+                        # Protect user reading position if scrolled up
+                        if not force and (target - current > 160):
+                            return
+
+                        if not smooth:
+                            bar.setValue(target)
+                        else:
+                            from ui.components.animation_system import smooth_scroll_to
+                            smooth_scroll_to(self.scroll_area, target, duration=140)
             except Exception:
                 pass
-        QTimer.singleShot(50, _do_scroll)
+        QTimer.singleShot(15, _do_scroll)
 
     def show_working_stage(self, stage_text: str):
         self.working_panel.set_stage(stage_text)

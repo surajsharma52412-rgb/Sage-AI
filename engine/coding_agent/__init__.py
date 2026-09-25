@@ -40,9 +40,63 @@ from .pipeline import (
     SelfHealingLoop,
     FinalPackager,
 )
+from .master_prompt_generator import MasterPromptGenerator, MasterPromptResult
+from .request_intelligence import (
+    RequestIntelligenceEngine,
+    RequestIntelligenceReport,
+    ComplexityLevel,
+    ProjectMode,
+    AmbiguityLevel,
+    StructuredRequirements,
+    RiskAssessment
+)
+from .project_memory import ProjectMemoryManager, StructuredProjectMemory
+from .requirement_traceability import (
+    RequirementTraceabilityMatrix,
+    RequirementStatus,
+    TraceableRequirement
+)
+from .model_benchmarking import (
+    ModelBenchmarkTracker,
+    ModelBenchmarkStats,
+    ModelExecutionRecord
+)
+from .multi_model_review import (
+    MultiModelReviewSystem,
+    MultiModelReviewReport,
+    ReviewFinding
+)
+from .safety_approval_gates import (
+    SafetyApprovalGates,
+    ActionRiskTier,
+    GateEvaluationResult
+)
 
 __all__ = [
     "CodingAgentOrchestrator",
+    "MasterPromptGenerator",
+    "MasterPromptResult",
+    "RequestIntelligenceEngine",
+    "RequestIntelligenceReport",
+    "ComplexityLevel",
+    "ProjectMode",
+    "AmbiguityLevel",
+    "StructuredRequirements",
+    "RiskAssessment",
+    "ProjectMemoryManager",
+    "StructuredProjectMemory",
+    "RequirementTraceabilityMatrix",
+    "RequirementStatus",
+    "TraceableRequirement",
+    "ModelBenchmarkTracker",
+    "ModelBenchmarkStats",
+    "ModelExecutionRecord",
+    "MultiModelReviewSystem",
+    "MultiModelReviewReport",
+    "ReviewFinding",
+    "SafetyApprovalGates",
+    "ActionRiskTier",
+    "GateEvaluationResult",
     "ProjectAnalyzer",
     "ProjectUnderstandingEngine",
     "CodebaseIndexer",

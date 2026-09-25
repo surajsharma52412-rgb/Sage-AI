@@ -1,5 +1,5 @@
 """
-Settings Dialog Component for Sage AI (Lunar Engine).
+Settings Dialog Component for Sage AI.
 Manages provider API keys, live key verification tests, Ollama server auto-start & tests,
 Mem0 memory toggles, and fast-mode preferences stored in SQLite.
 """
@@ -413,7 +413,7 @@ class SettingsDialog(QDialog):
 
         if how_to_step:
             step_lbl = QLabel(f"💡 {how_to_step}")
-            step_lbl.setStyleSheet("color: #657491; font-size: 10.5px; background: transparent;")
+            step_lbl.setStyleSheet("color: #657491; font-size: 11px; background: transparent;")
             step_lbl.setWordWrap(True)
             card_layout.addWidget(step_lbl)
 
@@ -495,7 +495,7 @@ class SettingsDialog(QDialog):
         qs_icon.setStyleSheet("font-size: 16px; background: transparent;")
         qs_header.addWidget(qs_icon)
         qs_title = QLabel("Quick Start: How to Add Free AI in 30 Seconds")
-        qs_title.setStyleSheet("color: #00D1FF; font-size: 13.5px; font-weight: 800; background: transparent;")
+        qs_title.setStyleSheet("color: #00D1FF; font-size: 14px; font-weight: 800; background: transparent;")
         qs_header.addWidget(qs_title)
         qs_header.addStretch()
         qs_layout.addLayout(qs_header)
@@ -507,7 +507,7 @@ class SettingsDialog(QDialog):
             "• <span style='color:#38bdf8;'>💻 <b>Local Ollama</b></span>: 100% Free & private, runs completely offline on your computer (see Local tab).<br><br>"
             "👉 <i>Just click '<b>🔗 Get Key</b>' on any card below, copy your key, paste it, and click '<b>⚡ Test & Connect</b>'!</i>"
         )
-        qs_desc.setStyleSheet("color: #d6e2f5; font-size: 11.5px; line-height: 1.5; background: transparent;")
+        qs_desc.setStyleSheet("color: #d6e2f5; font-size: 12px; line-height: 1.5; background: transparent;")
         qs_desc.setWordWrap(True)
         qs_layout.addWidget(qs_desc)
 
@@ -740,7 +740,7 @@ class SettingsDialog(QDialog):
                 self.openrouter_status.setText(f"✅ Connected! {len(models)} models ready{rem_info}")
                 self.openrouter_status.setStyleSheet("color: #00D1FF; font-weight: 600;")
             else:
-                self.openrouter_status.setText("❌ Connection failed. Check that your key has no extra spaces.")
+                self.openrouter_status.setText("❌ Connection errors. Check that your key has no extra spaces.")
                 self.openrouter_status.setStyleSheet("color: #ff5c77;")
         except Exception as e:
             self.openrouter_status.setText(f"❌ Connection error: {e}")
@@ -762,7 +762,7 @@ class SettingsDialog(QDialog):
                 self.groq_status.setText(f"✅ Connected! {len(models)} models ready (Groq Free Tier active)")
                 self.groq_status.setStyleSheet("color: #00D1FF; font-weight: 600;")
             else:
-                self.groq_status.setText("❌ Connection failed. Verify your key from console.groq.com/keys")
+                self.groq_status.setText("❌ Connection errors. Verify your key from console.groq.com/keys")
                 self.groq_status.setStyleSheet("color: #ff5c77;")
         except Exception as e:
             self.groq_status.setText(f"❌ Connection error: {e}")
@@ -784,7 +784,7 @@ class SettingsDialog(QDialog):
                 self.gemini_status.setText(f"✅ Connected! {len(models)} models ready (Gemini Free Tier active)")
                 self.gemini_status.setStyleSheet("color: #00D1FF; font-weight: 600;")
             else:
-                self.gemini_status.setText("❌ Connection failed. Check key at aistudio.google.com/app/apikey")
+                self.gemini_status.setText("❌ Connection errors. Check key at aistudio.google.com/app/apikey")
                 self.gemini_status.setStyleSheet("color: #ff5c77;")
         except Exception as e:
             self.gemini_status.setText(f"❌ Connection error: {e}")
@@ -808,7 +808,7 @@ class SettingsDialog(QDialog):
                 self.nvidia_status.setText(f"✅ Connected! {len(models)} models ready • {int(rem_cr)} free credits left")
                 self.nvidia_status.setStyleSheet("color: #00D1FF; font-weight: 600;")
             else:
-                self.nvidia_status.setText("❌ Connection failed. Check key at build.nvidia.com")
+                self.nvidia_status.setText("❌ Connection errors. Check key at build.nvidia.com")
                 self.nvidia_status.setStyleSheet("color: #ff5c77;")
         except Exception as e:
             self.nvidia_status.setText(f"❌ Connection error: {e}")
@@ -882,7 +882,7 @@ class SettingsDialog(QDialog):
                 self.tavily_status.setText(f"❌ Error {r.status_code}")
                 self.tavily_status.setStyleSheet("color: #ff5c77;")
         except Exception:
-            self.tavily_status.setText("❌ Connection failed")
+            self.tavily_status.setText("❌ Connection errors")
             self.tavily_status.setStyleSheet("color: #ff5c77;")
 
     def _create_local_tab(self) -> QWidget:

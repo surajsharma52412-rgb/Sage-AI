@@ -1,5 +1,5 @@
 """
-Configuration module for Sage AI (Lunar Engine).
+Configuration module for Sage AI.
 Manages paths, model settings, provider credentials, and fallback routing policies.
 """
 import os
@@ -65,6 +65,16 @@ DEFAULT_MODELS = {
     "tavily_api_url": "https://api.tavily.com/search",
 }
 
+# ==============================================================================
+# Zero-Cost Guard Architecture Configuration
+# Enforces that EVERY AI request is checked against a 0 Rs budget limit.
+# Any model exceeding 0 Rs is automatically shifted to 100% Free models (0 Rs).
+# ==============================================================================
+ZERO_COST_GUARD_ENABLED = os.getenv("ZERO_COST_GUARD_ENABLED", "true").lower() in ("true", "1", "yes")
+MAX_ALLOWED_MODEL_COST_RS = float(os.getenv("MAX_ALLOWED_MODEL_COST_RS", "0.0"))
+USD_TO_INR_RATE = float(os.getenv("USD_TO_INR_RATE", "85.0"))
+
+
 # Curated Preset Models per Provider for User Selection (100% Free / Free-Tier)
 PROVIDER_PRESET_MODELS = {
     "nvidia": [
@@ -124,6 +134,16 @@ PROVIDER_PRESET_MODELS = {
         "gemini-2.0-flash-lite",
     ],
     "openrouter": [
+        "unbiased/pareto",
+        "deepseek/deepseek-r1",
+        "qwen/qwen-2.5-coder-32b-instruct",
+        "deepseek/deepseek-chat",
+        "meta-llama/llama-3.3-70b-instruct",
+        "deepseek/deepseek-v4-flash-0731:free",
+        "qwen/qwen3.8-27b:free",
+        "cohere/north-mini-code:free",
+        "nex-agi/nex-n2.5-pro:free",
+        "nvidia/nemotron-3.5-lightning:free",
         "deepseek/deepseek-r1:free",
         "qwen/qwen-2.5-coder-32b-instruct:free",
         "deepseek/deepseek-chat:free",

@@ -1,5 +1,5 @@
 """
-Cloudflare Workers AI Provider for Sage AI (Lunar Engine).
+Cloudflare Workers AI Provider for Sage AI.
 Serverless edge-accelerated inference across global Cloudflare edge network.
 """
 import time

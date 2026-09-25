@@ -42,7 +42,7 @@ class TestCodeBlocksAndAsciiArt(unittest.TestCase):
         self.assertIn("Plain text", html_out)
         self.assertIn("copy:0", html_out)
         self.assertIn("white-space: pre", html_out)
-        self.assertIn("background-color: #131722", html_out)
+        self.assertTrue("background-color: #0A0F14" in html_out or "background-color: #131722" in html_out)
 
     def test_unfenced_ascii_companion_auto_detection(self):
         """Tests that multi-line unfenced ASCII drawings are automatically detected and fenced."""

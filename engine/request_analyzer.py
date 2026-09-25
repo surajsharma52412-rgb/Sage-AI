@@ -1,5 +1,5 @@
 """
-Request Analyzer module for Sage AI (Lunar Engine).
+Request Analyzer module for Sage AI.
 Classifies user queries into specific intent categories for smart routing.
 """
 import re
@@ -63,8 +63,8 @@ class RequestAnalyzer:
         r"^(calculate|compute|eval|what\s+is)\s+[\d\.\s\+\-\*\/\(\)\^\%]+$",
         r"^[\d\.\s\+\-\*\/\(\)\^\%]{3,}$",
         r"\bconvert\s+\d+(\.\d+)?\s*(usd|eur|gbp|inr|jpy|cad|aud)\s+to\s+(usd|eur|gbp|inr|jpy|cad|aud)\b",
-        r"\b(who\s+are\s+you|what\s+is\s+sage\s+ai|about\s+sage|what\s+is\s+lunar\s+engine)\b",
-        r"\b(who\s+(created|made|built|developed|designed|founded)\s+(you|sage|sage\s+ai|this\s+(app|software|project)|lunar(\s+engine)?)|who\s+is\s+(your|the)\s+(creator|developer|founder|maker|author|father)|who\s+owns\s+(you|sage)|who\s+is\s+suraj(\s+sharma)?|suraj\s+sharma)\b",
+        r"\b(who\s+are\s+you|what\s+is\s+sage\s+ai|about\s+sage|what\s+is\s+sage\s+engine)\b",
+        r"\b(who\s+(created|made|built|developed|designed|founded)\s+(you|sage|sage\s+ai|this\s+(app|software|project)|sage(\s+engine)?)|who\s+is\s+(your|the)\s+(creator|developer|founder|maker|author|father)|who\s+owns\s+(you|sage)|who\s+is\s+suraj(\s+sharma)?|suraj\s+sharma)\b",
         r"\b(cheatsheet|cheat\s+sheet|knowledge\s+base|offline\s+guide|offline\s+facts|offline\s+help|what\s+can\s+you\s+do\s+offline)\b",
         r"\b(show\s+(me\s+)?(the\s+)?(sage\s+ai\s+)?(local\s+)?knowledge\s+base|show\s+cheatsheets)\b",
         r"\b(git\s+commands|git\s+cheatsheet|python\s+cheatsheet|pyside6\s+reference|markdown\s+cheatsheet|sql\s+cheatsheet|linux\s+commands)\b",

@@ -10,6 +10,7 @@ Full interactive visual DAG automation system matching the reference studio desi
 """
 import os
 import sys
+import math
 import uuid
 import time
 from datetime import datetime, timedelta
@@ -49,7 +50,14 @@ class FlowchartCanvas(QWidget):
         self.selected_node_id = "node_trigger"
         self.active_running_node_id = None
         self.nodes: List[Dict[str, Any]] = []
+        self._pulse_timer: Optional[QTimer] = None
+        self._pulse_step = 0.0
         self._init_default_workflow()
+        self.destroyed.connect(self._cleanup_timer)
+
+    def _cleanup_timer(self):
+        if self._pulse_timer and self._pulse_timer.isActive():
+            self._pulse_timer.stop()
 
     def _get_node_rect(self, node: Dict[str, Any]) -> QRectF:
         center_x = (self.width() / 2.0) / self.zoom_level
@@ -100,6 +108,24 @@ class FlowchartCanvas(QWidget):
 
     def highlight_running_node(self, node_id: Optional[str]):
         self.active_running_node_id = node_id
+        try:
+            from ui.components.animation_system import get_anim_manager
+            mgr = get_anim_manager()
+            if node_id and not mgr.is_low_performance:
+                if not self._pulse_timer:
+                    self._pulse_timer = QTimer(self)
+                    self._pulse_timer.timeout.connect(self._on_pulse_tick)
+                if not self._pulse_timer.isActive():
+                    self._pulse_timer.start(45)
+            else:
+                if self._pulse_timer and self._pulse_timer.isActive():
+                    self._pulse_timer.stop()
+        except Exception:
+            pass
+        self.update()
+
+    def _on_pulse_tick(self):
+        self._pulse_step += 0.12
         self.update()
 
     def paintEvent(self, event):
@@ -291,7 +317,13 @@ class FlowchartCanvas(QWidget):
             border_col = QColor("#38bdf8")
 
         # Shadow / Glow
-        if is_selected or is_running:
+        if is_running:
+            alpha = int(100 + 60 * math.sin(self._pulse_step))
+            glow_pen = QPen(QColor(0, 209, 255, max(30, min(220, alpha))), 5)
+            painter.setPen(glow_pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(QRectF(nx - 3, ny - 3, nw + 6, nh + 6), 11, 11)
+        elif is_selected:
             glow_pen = QPen(QColor(border_col.red(), border_col.green(), border_col.blue(), 90), 4)
             painter.setPen(glow_pen)
             painter.setBrush(Qt.NoBrush)
@@ -390,7 +422,7 @@ class AutomationsView(QWidget):
         main_title = QLabel("Automation")
         main_title.setStyleSheet("color: #f8fafc; font-size: 20px; font-weight: 800; letter-spacing: 0.3px;")
         sub_title = QLabel("Turn your ideas into actions. Automate your digital life with AI.")
-        sub_title.setStyleSheet("color: #94a3b8; font-size: 11.5px;")
+        sub_title.setStyleSheet("color: #94a3b8; font-size: 12px;")
         text_col.addWidget(main_title)
         text_col.addWidget(sub_title)
         title_box.addLayout(text_col)
@@ -417,7 +449,7 @@ class AutomationsView(QWidget):
         input_col = QVBoxLayout()
         input_col.setSpacing(1)
         prompt_hdr = QLabel("✨ What do you want to automate?")
-        prompt_hdr.setStyleSheet("color: #fbbf24; font-size: 10.5px; font-weight: 700;")
+        prompt_hdr.setStyleSheet("color: #fbbf24; font-size: 11px; font-weight: 700;")
         input_col.addWidget(prompt_hdr)
 
         self.nl_prompt_input = QLineEdit()
@@ -456,7 +488,7 @@ class AutomationsView(QWidget):
                 border: 1px solid rgba(0, 209, 255, 0.35);
                 border-radius: 7px;
                 padding: 8px 14px;
-                font-size: 11.5px;
+                font-size: 12px;
                 font-weight: 700;
             }
             QPushButton:hover {
@@ -588,7 +620,7 @@ class AutomationsView(QWidget):
         health_dot.setStyleSheet("color: #10b981; font-size: 9px;")
         sb_layout.addWidget(health_dot)
         health_txt = QLabel("System Ready")
-        health_txt.setStyleSheet("color: #94a3b8; font-size: 10.5px; font-weight: 600;")
+        health_txt.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 600;")
         sb_layout.addWidget(health_txt)
 
         sep1 = QLabel("│")
@@ -637,9 +669,9 @@ class AutomationsView(QWidget):
         t_col = QVBoxLayout()
         t_col.setSpacing(1)
         n_lbl = QLabel(name)
-        n_lbl.setStyleSheet("color: #f8fafc; font-size: 11.5px; font-weight: 700;")
+        n_lbl.setStyleSheet("color: #f8fafc; font-size: 12px; font-weight: 700;")
         d_lbl = QLabel(desc)
-        d_lbl.setStyleSheet("color: #64748b; font-size: 9.5px;")
+        d_lbl.setStyleSheet("color: #64748b; font-size: 10px;")
         t_col.addWidget(n_lbl)
         t_col.addWidget(d_lbl)
         c_l.addLayout(t_col, 1)
@@ -665,7 +697,7 @@ class AutomationsView(QWidget):
         # Header
         h_row = QHBoxLayout()
         title = QLabel("My Workflows")
-        title.setStyleSheet("color: #f8fafc; font-size: 13.5px; font-weight: 800;")
+        title.setStyleSheet("color: #f8fafc; font-size: 14px; font-weight: 800;")
         h_row.addWidget(title)
         h_row.addStretch()
 
@@ -742,7 +774,7 @@ class AutomationsView(QWidget):
                 border: 1px solid rgba(0, 209, 255, 0.35);
                 border-radius: 7px;
                 padding: 8px 12px;
-                font-size: 11.5px;
+                font-size: 12px;
                 font-weight: 700;
             }
             QPushButton:hover {
@@ -810,7 +842,7 @@ class AutomationsView(QWidget):
                     border-radius: 6px;
                     padding: 6px 10px;
                     text-align: left;
-                    font-size: 11.5px;
+                    font-size: 12px;
                     font-weight: {'700' if is_sel else '600'};
                 }}
                 QPushButton:hover {{
@@ -862,7 +894,7 @@ class AutomationsView(QWidget):
         top_row.setSpacing(10)
 
         self.wf_title_lbl = QLabel("Untitled Workflow")
-        self.wf_title_lbl.setStyleSheet("color: #f8fafc; font-size: 14.5px; font-weight: 800;")
+        self.wf_title_lbl.setStyleSheet("color: #f8fafc; font-size: 15px; font-weight: 800;")
         top_row.addWidget(self.wf_title_lbl)
 
         edit_btn = QPushButton("✏")
@@ -953,7 +985,7 @@ class AutomationsView(QWidget):
         z_minus.setFixedSize(22, 22)
         z_minus.clicked.connect(lambda: self.canvas.set_zoom(self.canvas.zoom_level - 0.1))
         self.z_lbl = QLabel("100%")
-        self.z_lbl.setStyleSheet("color: #94a3b8; font-size: 10.5px; font-weight: 600;")
+        self.z_lbl.setStyleSheet("color: #94a3b8; font-size: 11px; font-weight: 600;")
         z_plus = QPushButton("＋")
         z_plus.setFixedSize(22, 22)
         z_plus.clicked.connect(lambda: self.canvas.set_zoom(self.canvas.zoom_level + 0.1))
@@ -1232,7 +1264,7 @@ class AutomationsView(QWidget):
         self.ns_node_title = QLabel("—")
         self.ns_node_title.setStyleSheet("color: #f8fafc; font-size: 12px; font-weight: 700;")
         self.ns_node_desc = QLabel("Select a node on the canvas to configure it.")
-        self.ns_node_desc.setStyleSheet("color: #8fa0c0; font-size: 9.5px;")
+        self.ns_node_desc.setStyleSheet("color: #8fa0c0; font-size: 10px;")
         self.ns_node_desc.setWordWrap(True)
         nb_info.addWidget(self.ns_node_title)
         nb_info.addWidget(self.ns_node_desc)
@@ -1323,7 +1355,7 @@ class AutomationsView(QWidget):
             r_date = now + timedelta(days=offset)
             r_str = r_date.strftime("%b %d, %Y  08:00 AM")
             r_lbl = QLabel(f"🕒  {r_str}")
-            r_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; padding: 1px 0px;")
+            r_lbl.setStyleSheet("color: #cbd5e1; font-size: 11px; padding: 1px 0px;")
             form_l.addWidget(r_lbl)
 
         # Run History Section
@@ -1334,7 +1366,7 @@ class AutomationsView(QWidget):
         rh_hdr.addStretch()
 
         view_all = QLabel("<a href='#' style='color:#a855f7; text-decoration:none;'>View All</a>")
-        view_all.setStyleSheet("font-size: 10.5px; font-weight: 600;")
+        view_all.setStyleSheet("font-size: 11px; font-weight: 600;")
         rh_hdr.addWidget(view_all)
         form_l.addLayout(rh_hdr)
 
@@ -1632,7 +1664,7 @@ class AutomationsView(QWidget):
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
                 font-weight: 600;
-                font-size: 11.5px;
+                font-size: 12px;
             }
             QTabBar::tab:selected {
                 background-color: #111827;
@@ -1663,7 +1695,7 @@ class AutomationsView(QWidget):
         t_lbl = QLabel("Automation Studio • Complete User Guide")
         t_lbl.setStyleSheet("color: #f8fafc; font-size: 18px; font-weight: 800;")
         s_lbl = QLabel("Turn natural language ideas into automated AI workflows. Here is everything you need to know.")
-        s_lbl.setStyleSheet("color: #94a3b8; font-size: 11.5px;")
+        s_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
         hdr_info.addWidget(t_lbl)
         hdr_info.addWidget(s_lbl)
         hdr_row.addLayout(hdr_info, 1)
@@ -1682,18 +1714,18 @@ class AutomationsView(QWidget):
         
         <div style='background: #162033; border: 1px solid #273449; border-radius: 8px; padding: 12px; margin-bottom: 8px;'>
             <p style='color: #fbbf24; font-weight: bold; margin: 0 0 4px 0;'>Step 1: Type your goal in plain English</p>
-            <p style='color: #94a3b8; font-size: 11.5px; margin: 0;'>Look at the top input bar: <b style='color: #fff;'>✨ What do you want to automate?</b><br>
+            <p style='color: #94a3b8; font-size: 12px; margin: 0;'>Look at the top input bar: <b style='color: #fff;'>✨ What do you want to automate?</b><br>
             Type whatever you want, such as: <i>"Every morning read my unread emails, summarize high-priority messages, and send me a report."</i></p>
         </div>
 
         <div style='background: #162033; border: 1px solid #273449; border-radius: 8px; padding: 12px; margin-bottom: 8px;'>
             <p style='color: #00D1FF; font-weight: bold; margin: 0 0 4px 0;'>Step 2: Click "Generate Workflow →"</p>
-            <p style='color: #94a3b8; font-size: 11.5px; margin: 0;'>Sage AI instantly reads your prompt, creates the necessary Trigger, Actions, AI reasoning, Decision branch, and Output nodes, and arranges them on the visual canvas automatically.</p>
+            <p style='color: #94a3b8; font-size: 12px; margin: 0;'>Sage AI instantly reads your prompt, creates the necessary Trigger, Actions, AI reasoning, Decision branch, and Output nodes, and arranges them on the visual canvas automatically.</p>
         </div>
 
         <div style='background: #162033; border: 1px solid #273449; border-radius: 8px; padding: 12px;'>
             <p style='color: #10b981; font-weight: bold; margin: 0 0 4px 0;'>Step 3: Test and Run</p>
-            <p style='color: #94a3b8; font-size: 11.5px; margin: 0;'>Click <b style='color: #fff;'>⚡ Test Run</b> to test in safe simulation mode, or click <b style='color: #fff;'>▶ Run Workflow</b> to execute live! You can watch live step-by-step progress in the Execution Console below.</p>
+            <p style='color: #94a3b8; font-size: 12px; margin: 0;'>Click <b style='color: #fff;'>⚡ Test Run</b> to test in safe simulation mode, or click <b style='color: #fff;'>▶ Run Workflow</b> to execute live! You can watch live step-by-step progress in the Execution Console below.</p>
         </div>
         """)
         t1_text.setTextFormat(Qt.RichText)
@@ -1708,7 +1740,7 @@ class AutomationsView(QWidget):
         t2_l.setSpacing(10)
         t2_text = QLabel("""
         <h3 style='color: #00D1FF; margin-top: 0;'>🧩 Understanding the 3 Workspace Panels</h3>
-        <table style='width: 100%; border-collapse: collapse; font-size: 11.5px; color: #cbd5e1;'>
+        <table style='width: 100%; border-collapse: collapse; font-size: 12px; color: #cbd5e1;'>
             <tr style='border-bottom: 1px solid #273449;'>
                 <th style='text-align: left; padding: 8px; color: #38bdf8; width: 28%;'>Panel</th>
                 <th style='text-align: left; padding: 8px; color: #38bdf8;'>What It Does & How to Use It</th>
@@ -1755,7 +1787,7 @@ class AutomationsView(QWidget):
         t3_l.setSpacing(8)
         t3_text = QLabel("""
         <h3 style='color: #00D1FF; margin-top: 0;'>🛠 14 Tool Integration Cards</h3>
-        <p style='color: #94a3b8; font-size: 11.5px;'>Clicking any tool card in the top grid lets you quickly trigger or inspect integrations:</p>
+        <p style='color: #94a3b8; font-size: 12px;'>Clicking any tool card in the top grid lets you quickly trigger or inspect integrations:</p>
         <div style='font-size: 11px; color: #cbd5e1; line-height: 1.6;'>
             • <b>✉ Email</b>: Read unread messages, draft AI responses, send via Gmail.<br>
             • <b>📅 Calendar</b>: Fetch Google Calendar events, schedule reminders.<br>
@@ -1787,19 +1819,19 @@ class AutomationsView(QWidget):
         <h3 style='color: #00D1FF; margin-top: 0;'>🛡 Human-in-the-Loop Security (Why Dialogs Pop Up)</h3>
         <div style='background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; border-radius: 8px; padding: 12px; margin-bottom: 8px;'>
             <b style='color: #10b981;'>You Are Always in Control</b>
-            <p style='color: #cbd5e1; font-size: 11.5px; margin: 4px 0 0 0;'>Sage AI is designed with an uncompromising safety principle: <b>an autonomous agent should never send an actual email, overwrite critical files, or execute high-risk operations without your explicit approval.</b></p>
+            <p style='color: #cbd5e1; font-size: 12px; margin: 4px 0 0 0;'>Sage AI is designed with an uncompromising safety principle: <b>an autonomous agent should never send an actual email, overwrite critical files, or execute high-risk operations without your explicit approval.</b></p>
         </div>
 
         <h4 style='color: #f8fafc; margin: 8px 0 4px 0;'>What is the Permission Dialog?</h4>
-        <p style='color: #94a3b8; font-size: 11.5px;'>When an automation runs an action marked as <i>high risk</i> (such as sending an email to a real recipient):</p>
-        <ol style='color: #cbd5e1; font-size: 11.5px; line-height: 1.6;'>
+        <p style='color: #94a3b8; font-size: 12px;'>When an automation runs an action marked as <i>high risk</i> (such as sending an email to a real recipient):</p>
+        <ol style='color: #cbd5e1; font-size: 12px; line-height: 1.6;'>
             <li>Execution pauses automatically.</li>
             <li>A <b>Permission Confirmation Dialog</b> appears showing the action, recipient, subject, and full message preview.</li>
             <li>You can review the exact text, click <b>Approve</b> to send, or <b>Deny</b> to safely cancel.</li>
         </ol>
 
         <h4 style='color: #f8fafc; margin: 8px 0 4px 0;'>Safe Sandbox Mode</h4>
-        <p style='color: #94a3b8; font-size: 11.5px;'>By default, if you haven't linked your live Gmail credentials, Sage AI runs in <b>Sandbox Mode</b> with built-in mock emails so you can safely test the entire workflow without touching real accounts.</p>
+        <p style='color: #94a3b8; font-size: 12px;'>By default, if you haven't linked your live Gmail credentials, Sage AI runs in <b>Sandbox Mode</b> with built-in mock emails so you can safely test the entire workflow without touching real accounts.</p>
         """)
         t4_text.setTextFormat(Qt.RichText)
         t4_text.setWordWrap(True)
@@ -1848,7 +1880,7 @@ class AutomationsView(QWidget):
             QPushButton {
                 background: #162033; color: #38bdf8;
                 border: 1px solid #273449; border-radius: 6px;
-                padding: 7px 16px; font-size: 11.5px; font-weight: 600;
+                padding: 7px 16px; font-size: 12px; font-weight: 600;
             }
             QPushButton:hover {
                 border-color: #38bdf8;
@@ -1895,18 +1927,21 @@ class AutomationsView(QWidget):
 
     # ── Backward Compatibility with test suites ──────────────────────
     def _populate_test_models(self):
-        """Populates model_combo so test_model_availability_everywhere passes."""
+        """Populates model_combo cleanly with fast local provider availability checks."""
         try:
             from engine.model_scanner import ModelScanner
-            models = ModelScanner.scan_all_configured()
-            for m in models:
-                tag = "[● Available]" if m.get("available") else "[○ Unavailable]"
-                label = f"{m.get('name', 'Model')} {tag}"
-                self.model_combo.addItem(label, m.get("id"))
+            candidates = [
+                ("Auto Router", "auto", "auto"),
+                ("Google Gemini 2.5 Pro", "gemini", "gemini"),
+                ("Groq Llama 3.3", "groq", "groq"),
+                ("NVIDIA Llama 3.2", "nvidia", "nvidia"),
+                ("Claude 3.5 Sonnet", "claude", "openrouter"),
+            ]
+            for name, m_id, prov in candidates:
+                avail = ModelScanner.is_provider_available(prov)
+                tag = "[● Available]" if avail else "[○ Unavailable]"
+                self.model_combo.addItem(f"{name} {tag}", m_id)
         except Exception:
-            pass
-
-        if self.model_combo.count() == 0:
             self.model_combo.addItem("Auto Router [● Available]", "auto")
             self.model_combo.addItem("Google Gemini 2.5 Pro [● Available]", "gemini")
             self.model_combo.addItem("Groq Llama 3.3 [● Available]", "groq")

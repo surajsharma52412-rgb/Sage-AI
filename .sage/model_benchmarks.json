@@ -1,0 +1,40 @@
+{
+  "models": {
+    "gemini-2.5-pro": {
+      "total_calls": 10,
+      "successful_calls": 5,
+      "failed_calls": 5,
+      "total_latency_s": 51.65000000000001,
+      "total_cost_rs": 0.0,
+      "total_tokens": 19286,
+      "tests_passed_count": 7,
+      "bugs_detected_count": 0
+    }
+  },
+  "archetypes": {
+    "complex_app": {
+      "gemini-2.5-pro": {
+        "total_calls": 5,
+        "successful_calls": 5,
+        "failed_calls": 0,
+        "total_latency_s": 3.95,
+        "total_cost_rs": 0.0,
+        "total_tokens": 9475,
+        "tests_passed_count": 5,
+        "bugs_detected_count": 0
+      }
+    },
+    "architecture": {
+      "gemini-2.5-pro": {
+        "total_calls": 5,
+        "successful_calls": 0,
+        "failed_calls": 5,
+        "total_latency_s": 47.7,
+        "total_cost_rs": 0.0,
+        "total_tokens": 9811,
+        "tests_passed_count": 2,
+        "bugs_detected_count": 0
+      }
+    }
+  }
+}

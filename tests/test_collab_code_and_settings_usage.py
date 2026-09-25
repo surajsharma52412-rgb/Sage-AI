@@ -22,7 +22,7 @@ class TestCollabCodeAndSettingsUsage(unittest.TestCase):
         sb = Sidebar()
         self.assertNotIn("tools", sb._nav_buttons)
         # Check standard navigation items remain intact
-        expected_items = ["home", "chat", "multi_agent", "coding_agent", "automations", "projects", "knowledge", "settings", "api_keys"]
+        expected_items = ["home", "chat", "multi_agent", "coding_agent", "automations", "knowledge", "settings", "api_keys"]
         for item in expected_items:
             self.assertIn(item, sb._nav_buttons)
         sb.deleteLater()

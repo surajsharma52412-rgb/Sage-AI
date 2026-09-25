@@ -51,12 +51,20 @@ from .sub_agents import (
     DevOpsAgent,
     DocumentationAgent
 )
+from dataclasses import asdict
 from .pipeline import (
     CodeIntegrator,
     AutomatedValidator,
     SelfHealingLoop,
     FinalPackager
 )
+from .master_prompt_generator import MasterPromptGenerator
+from .request_intelligence import RequestIntelligenceEngine
+from .project_memory import ProjectMemoryManager
+from .requirement_traceability import RequirementTraceabilityMatrix
+from .model_benchmarking import ModelBenchmarkTracker
+from .multi_model_review import MultiModelReviewSystem
+from .safety_approval_gates import SafetyApprovalGates
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +78,7 @@ class CodingAgentOrchestrator:
         model_override: Optional[str] = None
     ):
         self.workspace_root = workspace_root.resolve() if workspace_root else Path.cwd().resolve()
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
         self.safety = SafetyController(self.workspace_root)
         self.context_mgr = ContextFileManager(self.workspace_root, self.safety)
         self.memory = LongContextMemory()
@@ -83,6 +92,7 @@ class CodingAgentOrchestrator:
         self.context_engine = ContextEngine(self.indexer, self.analyzer, self.memory)
         self.task_mgr = PersistentTaskManager()
         self.scheduler = TaskScheduler(max_concurrency=3)
+        self.master_prompt_gen = MasterPromptGenerator(self.workspace_root)
 
         # Phase 3 & 6 Tools & Guardians
         self.sandbox = SandboxRunner(self.workspace_root)
@@ -114,9 +124,18 @@ class CodingAgentOrchestrator:
         self.healer = SelfHealingLoop(self.context_mgr, self.tools, self.validator, self.subagents, max_repairs=2)
         self.packager = FinalPackager(self.context_mgr)
 
+        # Ultimate Master Architecture Engines
+        self.request_intelligence = RequestIntelligenceEngine(self.workspace_root)
+        self.project_memory = ProjectMemoryManager(self.workspace_root)
+        self.traceability = RequirementTraceabilityMatrix()
+        self.benchmarks = ModelBenchmarkTracker(self.workspace_root)
+        self.multi_reviewer = MultiModelReviewSystem(self.workspace_root)
+        self.approval_gates = SafetyApprovalGates(self.workspace_root)
+
     def set_workspace(self, workspace_path: Path):
         """Re-roots all engines to the target project directory."""
         self.workspace_root = Path(workspace_path).resolve()
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
         self.safety.set_workspace_root(self.workspace_root)
         self.context_mgr.set_workspace_root(self.workspace_root)
         self.tools.set_workspace_root(self.workspace_root)
@@ -124,6 +143,12 @@ class CodingAgentOrchestrator:
         self.indexer.set_workspace_root(self.workspace_root)
         self.sandbox.set_workspace_root(self.workspace_root)
         self.tool_sys.set_workspace_root(self.workspace_root)
+        self.master_prompt_gen.workspace_root = self.workspace_root
+        self.request_intelligence.workspace_root = self.workspace_root
+        self.project_memory.set_workspace_root(self.workspace_root)
+        self.benchmarks.workspace_root = self.workspace_root
+        self.multi_reviewer.set_workspace_root(self.workspace_root)
+        self.approval_gates.workspace_root = self.workspace_root
 
     def execute_project(
         self,
@@ -172,8 +197,36 @@ class CodingAgentOrchestrator:
                     pass
 
         # ── 1. UNDERSTAND ───────────────────────────────────────────────
-        stage("🔍 1/11: UNDERSTAND — Ingesting user requirements & constraints...")
+        stage("🔍 1/11: UNDERSTAND — Ingesting user requirements & analyzing request intelligence...")
         log(f"  • Goal: {goal}")
+        intel = self.request_intelligence.analyze_request(goal)
+        log(f"  • Scope: {intel.scope} | Complexity: {intel.complexity.value} | Mode: {intel.project_mode.value}")
+
+        # Register requirements into Traceability Matrix (Section 20)
+        self.traceability.register_bulk({
+            "functional": intel.requirements.functional,
+            "non_functional": intel.requirements.non_functional,
+            "ui": intel.requirements.ui,
+            "backend": intel.requirements.backend,
+            "database": intel.requirements.database,
+            "security": intel.requirements.security,
+            "testing": intel.requirements.testing,
+            "animation": intel.requirements.animation
+        })
+
+        # Safety Approval Gate Check (Section 16 & 36)
+        if intel.risk.requires_approval:
+            gate_res = self.approval_gates.evaluate_command(goal)
+            if not gate_res.is_safe_to_proceed:
+                approved = self.approval_gates.request_approval_if_needed(gate_res)
+                if not approved:
+                    log(f"  🛑 Destructive action intercepted by Safety Approval Gate: {gate_res.reason}")
+                    return {
+                        "success": False,
+                        "blocked_by_safety": True,
+                        "reason": gate_res.reason,
+                        "session_id": session_id
+                    }
 
         # ── 2. ANALYZE ──────────────────────────────────────────────────
         stage("📊 2/11: ANALYZE — Inspecting project map & AST symbol index...")
@@ -181,6 +234,41 @@ class CodingAgentOrchestrator:
         index_report = self.indexer.update_index()
         log(f"  • Detected Stack: {proj_map['primary_language']} ({', '.join(proj_map['frameworks']) or 'Standard'})")
         log(f"  • Indexed {index_report['total_symbols']} symbols across {index_report['total_files_indexed']} files.")
+
+        # ── MASTER PROMPT GENERATION ────────────────────────────────────
+        stage("📝 MASTER PROMPT — Synthesizing 20-point engineering specification & coding prompt...")
+        mp_res = self.master_prompt_gen.generate_master_prompt(goal, proj_map)
+        if mp_res.needs_clarification:
+            log(f"  ⚠️ Clarification Required: {mp_res.clarification_question}")
+            return {
+                "success": False,
+                "needs_clarification": True,
+                "clarification_question": mp_res.clarification_question,
+                "session_id": session_id
+            }
+        log(f"  • Master Engineering Specification synthesized ({len(mp_res.master_prompt)} chars).")
+        log(f"  • Task Classification: {mp_res.task_classification} | Stack: {mp_res.tech_stack.get('language')} / {mp_res.tech_stack.get('framework')}")
+
+        # ── MODEL SELECTION & ZERO-COST GUARD ───────────────────────────
+        stage("🎯 MODEL SELECTION — Evaluating coding capability & enforcing Zero-Cost Guard limit...")
+        from engine.zero_cost_guard import get_zero_cost_guard
+        guard = get_zero_cost_guard()
+        model_selection = self.model_router.select_model_for_task(role="architect")
+        candidate_model = model_selection.get("chosen_model", "gemini-2.0-flash")
+
+        # Benchmark recommendation (Section 10)
+        best_candidate = self.benchmarks.get_best_model_for_archetype(
+            mp_res.task_classification,
+            [candidate_model, "gemini-2.0-flash", "llama-3.3-70b-versatile"]
+        )
+        if best_candidate:
+            candidate_model = best_candidate
+
+        cost_eval = guard.evaluate_model_cost(candidate_model)
+        if not cost_eval.is_zero_cost:
+            log(f"  🛡️ Zero-Cost Guard: Intercepted paid model '{candidate_model}' ({cost_eval.cost_in_rs} Rs). Shifting to 100% Free...")
+            candidate_model = guard.resolve_free_model(candidate_model, "coding")
+        log(f"  ✓ Model Selected: {candidate_model} (Guaranteed ≤ 0 Rs Free)")
 
         # ── 3. PLAN ────────────────────────────────────────────────────
         stage("📋 3/11: PLAN — Generating persistent DAG task graph...")
@@ -290,16 +378,26 @@ class CodingAgentOrchestrator:
         else:
             stage("✅ 8/11: DEBUG — No failures detected; zero debug patches required.")
 
-        # ── 9. REVIEW (CODE & SECURITY AUDIT) ───────────────────────────
-        stage("🔍 9/11: REVIEW — Auditing code quality, maintainability & security vulnerabilities...")
+        # ── 9. REVIEW (CODE, SECURITY & MULTI-MODEL AUDIT) ──────────────
+        stage("🔍 9/11: REVIEW — Multi-perspective audit: Security, Quality, Testing, UI/UX...")
         review_res = self.code_reviewer.review_codebase(files_to_review=changed_paths)
-        log(f"  • Quality Score: {review_res.get('quality_score', 100)}/100 | Security Findings: {review_res.get('findings_count', 0)}")
-        if review_res.get("findings"):
-            for f in review_res["findings"][:3]:
-                log(f"    ⚠️ [{f['severity']}] {f['file']}:{f['line']} — {f['issue']}")
+        multi_rev = self.multi_reviewer.execute_multi_review(changed_paths, has_ui=mp_res.has_ui)
+        log(f"  • Quality Score: {multi_rev.quality_score}/100 | Security Clean: {multi_rev.security_clean} | Findings: {len(multi_rev.findings)}")
+        if multi_rev.findings:
+            for f in multi_rev.findings[:3]:
+                log(f"    ⚠️ [{f.severity}] {f.file_path}:{f.line_number or ''} — {f.issue}")
 
-        # ── 10. VERIFY (CRITERIA CHECKLIST) ─────────────────────────────
-        stage("📋 10/11: VERIFY — Evaluating completion criteria checklist...")
+        # ── 10. VERIFY (TRACEABILITY & CRITERIA CHECKLIST) ─────────────
+        stage("📋 10/11: VERIFY — Evaluating requirement traceability & definition of done...")
+        self.traceability.auto_link_files(changed_paths, ["tests/test_main.py"])
+        dod = self.traceability.evaluate_definition_of_done(
+            tests_passed=val_report.get("passed", True),
+            security_passed=multi_rev.security_clean,
+            ui_checked=mp_res.has_ui,
+            docs_updated=(self.workspace_root / "README.md").exists()
+        )
+        log(f"  • Definition of Done: {dod['passed_gates']}/{dod['total_gates']} gates satisfied ({dod['readiness_percentage']}%).")
+
         completion_checklist = {
             "requirements_understood": True,
             "required_code_implemented": len(changed_paths) > 0,
@@ -307,7 +405,7 @@ class CodingAgentOrchestrator:
             "relevant_tests_pass": val_report.get("passed", True),
             "errors_resolved": len(val_report.get("syntax_errors", [])) == 0,
             "code_reviewed": True,
-            "security_checked": review_res.get("passed", True),
+            "security_checked": multi_rev.security_clean,
             "changes_tracked": True,
             "documentation_updated": (self.workspace_root / "README.md").exists()
         }
@@ -326,15 +424,28 @@ class CodingAgentOrchestrator:
         elapsed = round(time.time() - start_time, 2)
         stage(f"🚀 Project successfully engineered in {elapsed}s across {len(tasks)} DAG tasks!")
 
-        # Record ADR in memory
-        self.memory.record_technical_decision(
-            project_name=self.workspace_root.name,
+        # Record ADR and task in project memory (Section 6)
+        self.project_memory.record_task_completion(goal)
+        self.project_memory.record_decision(
             title=f"Implementation: {goal[:35]}",
             decision=f"Engineered using 11-stage autonomous loop with {proj_map['primary_language']}",
-            consequences=f"Produced {len(final_delivery['file_inventory'])} files with Quality Score {review_res.get('quality_score')}/100"
+            rationale=f"Produced {len(final_delivery['file_inventory'])} files with Quality Score {multi_rev.quality_score}/100"
         )
 
-        # Build structured agent output according to Section 25
+        # Record benchmark metrics (Section 10)
+        self.benchmarks.record_execution(
+            model_name=candidate_model,
+            provider_id="sage_router",
+            archetype=mp_res.task_classification,
+            latency_s=elapsed,
+            cost_rs=0.0,
+            tokens_used=len(mp_res.master_prompt) // 4,
+            tests_passed=val_report.get("passed", True),
+            bugs_detected=len(multi_rev.findings),
+            success=all_criteria_met
+        )
+
+        # Build structured agent output according to Section 25 & 30
         structured_state = {
             "session_id": session_id,
             "phase": "delivered" if all_criteria_met else "partial",
@@ -342,11 +453,12 @@ class CodingAgentOrchestrator:
             "progress": 100 if all_criteria_met else 85,
             "files_changed": changed_paths,
             "tests_passed": val_report.get("passed", True),
-            "quality_score": review_res.get("quality_score", 100),
-            "security_passed": review_res.get("passed", True),
+            "quality_score": multi_rev.quality_score,
+            "security_passed": multi_rev.security_clean,
             "checkpoint_id": checkpoint.get("checkpoint_id"),
             "duration_s": elapsed,
-            "checklist": completion_checklist
+            "checklist": completion_checklist,
+            "definition_of_done": dod
         }
 
         return {
@@ -358,6 +470,17 @@ class CodingAgentOrchestrator:
             "written_files": integration_report["written_files"],
             "validation": val_report,
             "review": review_res,
+            "multi_model_review": {
+                "passed": multi_rev.passed,
+                "quality_score": multi_rev.quality_score,
+                "security_clean": multi_rev.security_clean,
+                "findings": [asdict(f) for f in multi_rev.findings]
+            },
+            "traceability": self.traceability.get_traceability_report(),
+            "definition_of_done": dod,
+            "improvements": mp_res.improvements,
+            "master_engineering_spec": mp_res.engineering_spec,
+            "coding_model_prompt": mp_res.coding_model_prompt,
             "timeline": scheduler_report["timeline"],
             "readme": final_delivery["readme"],
             "summary": final_delivery["deliverable_markdown"],

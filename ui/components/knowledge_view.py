@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTextEdit, QComboBox, QScrollArea, QFrame,
     QSizePolicy, QApplication
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 
 from engine.orchestrator.memory_manager import MemoryManager
 from engine.shared_resources.vector_db import get_vector_db
@@ -43,18 +43,6 @@ class MemoryCard(QFrame):
         self._init_ui()
 
     def _init_ui(self):
-        self.setStyleSheet("""
-            QFrame#memoryCard {
-                background-color: #162033;
-                border: 1px solid rgba(0, 209, 255, 0.15);
-                border-radius: 12px;
-            }
-            QFrame#memoryCard:hover {
-                border-color: rgba(0, 209, 255, 0.35);
-                background-color: #162033;
-            }
-        """)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 12, 14, 12)
         layout.setSpacing(8)
@@ -79,16 +67,7 @@ class MemoryCard(QFrame):
 
         cat_col, cat_bg = self.CATEGORY_COLORS.get(cat, self.CATEGORY_COLORS["general"])
         cat_badge = QLabel(cat.upper())
-        cat_badge.setStyleSheet(f"""
-            color: {cat_col};
-            background-color: {cat_bg};
-            border: 1px solid {cat_col}44;
-            border-radius: 6px;
-            font-size: 9px;
-            font-weight: 800;
-            padding: 2px 8px;
-            letter-spacing: 0.5px;
-        """)
+        cat_badge.setStyleSheet(f"color: {cat_col}; background-color: {cat_bg}; border: 1px solid {cat_col}44; border-radius: 6px; font-size: 9px; font-weight: 800; padding: 2px 8px; letter-spacing: 0.5px;")
         header_row.addWidget(cat_badge)
 
         # Title
@@ -99,44 +78,17 @@ class MemoryCard(QFrame):
 
         # Copy Button
         copy_btn = QPushButton("📋 Copy")
+        copy_btn.setObjectName("memCopyBtn")
         copy_btn.setCursor(Qt.PointingHandCursor)
         copy_btn.setToolTip("Copy memory content to clipboard")
-        copy_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.05);
-                color: #94A3B8;
-                border: 1px solid #273449;
-                border-radius: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                padding: 3px 8px;
-            }
-            QPushButton:hover {
-                color: #00D1FF;
-                border-color: rgba(0, 209, 255, 0.3);
-            }
-        """)
         copy_btn.clicked.connect(self._copy_content)
         header_row.addWidget(copy_btn)
 
         # Delete Button
         del_btn = QPushButton("🗑 Forget")
+        del_btn.setObjectName("memDelBtn")
         del_btn.setCursor(Qt.PointingHandCursor)
         del_btn.setToolTip("Remove this memory from model's knowledge")
-        del_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(244, 63, 94, 0.08);
-                color: #f43f5e;
-                border: 1px solid rgba(244, 63, 94, 0.2);
-                border-radius: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                padding: 3px 8px;
-            }
-            QPushButton:hover {
-                background-color: rgba(244, 63, 94, 0.22);
-            }
-        """)
         del_btn.clicked.connect(lambda: self.deleted.emit(self.mem_id))
         header_row.addWidget(del_btn)
 
@@ -176,8 +128,24 @@ class KnowledgeView(QWidget):
         self.knowledge_base = get_knowledge_base()
 
         self._current_filter = "all"
+        self._has_loaded_memories = False
+        self._all_cached_memories: List[Dict[str, Any]] = []
+        self._filtered_memories: List[Dict[str, Any]] = []
+        self._page_size: int = 25
+        self._current_page: int = 1
+
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(220)
+        self._search_timer.timeout.connect(lambda: self.refresh_memories(reload_db=False))
+
         self._init_ui()
-        self.refresh_memories()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._has_loaded_memories:
+            self._has_loaded_memories = True
+            self.refresh_memories()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -214,6 +182,10 @@ class KnowledgeView(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        scroll.setWidget(container)
         scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
@@ -234,8 +206,6 @@ class KnowledgeView(QWidget):
             }
         """)
 
-        container = QWidget()
-        container.setStyleSheet("background: transparent;")
         c_layout = QVBoxLayout(container)
         c_layout.setContentsMargins(0, 0, 0, 16)
         c_layout.setSpacing(18)
@@ -473,12 +443,63 @@ class KnowledgeView(QWidget):
         chips_row.addStretch()
         c_layout.addLayout(chips_row)
 
-        # Cards container
-        self.cards_layout = QVBoxLayout()
+        # Cards container with unified styling to eliminate per-card stylesheet parsing
+        self.cards_container = QWidget()
+        self.cards_container.setObjectName("cardsContainer")
+        self.cards_container.setStyleSheet("""
+            QFrame#memoryCard {
+                background-color: #162033;
+                border: 1px solid rgba(0, 209, 255, 0.15);
+                border-radius: 12px;
+            }
+            QFrame#memoryCard:hover {
+                border-color: rgba(0, 209, 255, 0.35);
+                background-color: #162033;
+            }
+            QPushButton#memCopyBtn {
+                background-color: rgba(255, 255, 255, 0.05);
+                color: #94A3B8;
+                border: 1px solid #273449;
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 3px 8px;
+            }
+            QPushButton#memCopyBtn:hover {
+                color: #00D1FF;
+                border-color: rgba(0, 209, 255, 0.3);
+            }
+            QPushButton#memDelBtn {
+                background-color: rgba(244, 63, 94, 0.08);
+                color: #f43f5e;
+                border: 1px solid rgba(244, 63, 94, 0.2);
+                border-radius: 6px;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 3px 8px;
+            }
+            QPushButton#memDelBtn:hover {
+                background-color: rgba(244, 63, 94, 0.22);
+            }
+            QPushButton#loadMoreMemoriesBtn {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 209, 255, 0.12), stop:1 rgba(99, 102, 241, 0.12));
+                color: #00D1FF;
+                border: 1px solid rgba(0, 209, 255, 0.3);
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 8px 16px;
+            }
+            QPushButton#loadMoreMemoriesBtn:hover {
+                background: rgba(0, 209, 255, 0.24);
+                border-color: #00D1FF;
+            }
+        """)
+        self.cards_layout = QVBoxLayout(self.cards_container)
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
         self.cards_layout.setSpacing(10)
-        c_layout.addLayout(self.cards_layout)
+        c_layout.addWidget(self.cards_container)
 
-        scroll.setWidget(container)
         main_layout.addWidget(scroll)
 
     def _apply_preset(self, title: str, category: str, content: str, tags: str):
@@ -530,28 +551,22 @@ class KnowledgeView(QWidget):
         self.refresh_memories()
 
     def _on_search_changed(self, text: str):
-        self.refresh_memories()
+        self._search_timer.start(220)
 
-    def refresh_memories(self):
-        """Reloads and displays memories matching current filter and query."""
-        # Clear existing cards
-        while self.cards_layout.count():
-            item = self.cards_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-
-        all_memories = self.memory_manager.list_all_memories()
-        query = self.search_input.text().strip().lower()
+    def refresh_memories(self, reload_db: bool = True):
+        """Reloads and displays memories matching current filter and query with instant pagination."""
+        if reload_db or not self._all_cached_memories:
+            self._all_cached_memories = self.memory_manager.list_all_memories()
 
         # Update stats
         v_docs = self.vector_db.list_all_documents()
-        kb_entries = self.knowledge_base.list_entries()
-        self.stat_memories.setText(f"🧠 {len(all_memories)} Memories")
+        self.stat_memories.setText(f"🧠 {len(self._all_cached_memories)} Memories")
         self.stat_vectors.setText(f"⚡ {len(v_docs)} Vector Embeddings")
 
-        displayed_count = 0
-        for m in all_memories:
+        query = self.search_input.text().strip().lower()
+
+        filtered = []
+        for m in self._all_cached_memories:
             tags = m.get("tags", "")
             title = m.get("title", "").lower()
             content = m.get("content", "").lower()
@@ -568,23 +583,59 @@ class KnowledgeView(QWidget):
                 if query not in title and query not in content and query not in t_str:
                     continue
 
+            filtered.append(m)
+
+        self._filtered_memories = filtered
+        self._current_page = 1
+        self._render_cards_page()
+
+    def _render_cards_page(self):
+        """Renders up to current_page * page_size cards in a single non-blocking layout batch."""
+        if hasattr(self, "cards_container"):
+            self.cards_container.setUpdatesEnabled(False)
+
+        while self.cards_layout.count():
+            item = self.cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        total = len(self._filtered_memories)
+        limit = min(total, self._current_page * self._page_size)
+
+        for i in range(limit):
+            m = self._filtered_memories[i]
             card = MemoryCard(m, self)
             card.deleted.connect(self._handle_delete_memory)
             card.copied.connect(lambda: self.status_lbl.setText("✓ Copied memory to clipboard!"))
             self.cards_layout.addWidget(card)
-            displayed_count += 1
 
-        if displayed_count == 0:
+        if total == 0:
             empty_lbl = QLabel("No memories found matching your search. Use the form above to teach the model new facts!")
             empty_lbl.setStyleSheet("color: #626c85; font-size: 13px; padding: 20px; font-style: italic;")
             empty_lbl.setAlignment(Qt.AlignCenter)
             self.cards_layout.addWidget(empty_lbl)
+        elif limit < total:
+            remaining = total - limit
+            load_more_btn = QPushButton(f"⚡ Load More Memories ({remaining} remaining)...")
+            load_more_btn.setObjectName("loadMoreMemoriesBtn")
+            load_more_btn.setCursor(Qt.PointingHandCursor)
+            load_more_btn.clicked.connect(self._load_next_page)
+            self.cards_layout.addWidget(load_more_btn)
+
+        if hasattr(self, "cards_container"):
+            self.cards_container.setUpdatesEnabled(True)
+
+    def _load_next_page(self):
+        self._current_page += 1
+        self._render_cards_page()
 
     def _handle_delete_memory(self, mem_id: str):
         self.memory_manager.forget_memory(mem_id)
+        self._all_cached_memories = [m for m in self._all_cached_memories if m.get("id") != mem_id and m.get("key") != mem_id]
         self.status_lbl.setText("✓ Memory removed from model.")
         self.status_lbl.setStyleSheet("color: #00D1FF; font-size: 12px; font-weight: 600;")
-        self.refresh_memories()
+        self.refresh_memories(reload_db=False)
 
     def apply_theme(self, pal: Dict[str, str]):
         """Dynamically applies active theme palette to KnowledgeView components."""

@@ -1,5 +1,5 @@
 """
-Local Facts & Knowledge Base Provider for Sage AI (Lunar Engine).
+Local Facts & Knowledge Base Provider for Sage AI.
 Delivers instantaneous, zero-latency local answers for system time, math, currency,
 and built-in offline technical knowledge.
 """
@@ -98,7 +98,7 @@ class LocalFactsProvider(BaseProvider):
         if re.match(r"^(hi|hello|hey|yoo+|yo|greetings|howdy|sup)\b", lower_prompt):
             greeting_text = (
                 "👋 **Hello! Welcome to Sage AI.**\n\n"
-                "I am your multi-agentic AI desktop assistant powered by the Lunar Engine.\n\n"
+                "I am your multi-agentic AI desktop assistant powered by the Sage Engine.\n\n"
                 "Here are a few things we can do together:\n"
                 "- 💻 **Code & Debug**: Ask coding questions in Python, JavaScript, C++, Rust, and more.\n"
                 "- 🚀 **Autonomous Projects**: Switch to the **Projects** tab to plan, generate, and test complete codebases.\n"
@@ -126,10 +126,10 @@ class LocalFactsProvider(BaseProvider):
         ]):
             creator_text = (
                 "### 🌟 Creator & Lead Developer Information\n\n"
-                "**Sage AI (Lunar Engine)** was created, founded, and developed by **Suraj Sharma**.\n\n"
+                "**Sage AI** was created, founded, and developed by **Suraj Sharma**.\n\n"
                 "- **Creator & Founder:** Suraj Sharma\n"
                 "- **Project:** Sage AI\n"
-                "- **Engine:** Lunar Multi-Agent Engine\n"
+                "- **Engine:** Sage Multi-Agent Engine\n"
                 "- **Status:** Permanent and immutable creator\n\n"
                 "Suraj Sharma designed Sage AI to be an exceptionally fast, user-friendly, and powerful autonomous AI desktop workspace."
             )

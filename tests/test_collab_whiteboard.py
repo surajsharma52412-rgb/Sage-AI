@@ -257,8 +257,9 @@ class TestIdeWhiteboardIntegration(unittest.TestCase):
     def test_whiteboard_widget_present(self):
         self.assertIsNotNone(self.ide.whiteboard)
         self.assertIsInstance(self.ide.whiteboard, CollabWhiteboardWidget)
-        self.assertEqual(self.ide.bottom_tabs.count(), 3)
-        self.assertIn("Whiteboard", self.ide.bottom_tabs.tabText(2))
+        self.assertGreaterEqual(self.ide.bottom_tabs.count(), 3)
+        tab_texts = [self.ide.bottom_tabs.tabText(i) for i in range(self.ide.bottom_tabs.count())]
+        self.assertTrue(any("Whiteboard" in t for t in tab_texts))
 
     def test_focus_whiteboard_and_maximize(self):
         self.ide._focus_whiteboard()

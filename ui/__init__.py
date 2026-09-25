@@ -1,5 +1,5 @@
 """
-UI Package for Sage AI (Lunar Engine).
+UI Package for Sage AI.
 """
 from .main_window import MainWindow
 

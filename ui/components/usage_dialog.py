@@ -1,5 +1,5 @@
 """
-Model Usage & Analytics Dialog for Sage AI (Lunar Engine).
+Model Usage & Analytics Dialog for Sage AI.
 Displays real-time token counts, request totals, latency statistics,
 and per-model breakdowns stored in the local SQLite database.
 """
@@ -71,9 +71,10 @@ class QuotaCard(QFrame):
         header.addStretch()
 
         is_free = quota_data.get("is_free_tier", False)
-        badge = QLabel("Free Tier" if is_free else "Credit Key")
-        badge_color = "#00D1FF" if is_free else "#38bdf8"
-        badge.setStyleSheet(f"color: {badge_color}; background-color: rgba(0, 209, 255, 0.12); font-size: 9px; font-weight: 700; border-radius: 4px; padding: 2px 6px;")
+        tier_type = quota_data.get("tier_type") or ("100% Free Offline" if provider_id == "ollama" else ("Free Tier" if is_free else "Paid / Credits"))
+        badge = QLabel(tier_type)
+        badge_color = "#10b981" if is_free else "#38bdf8"
+        badge.setStyleSheet(f"color: {badge_color}; background-color: rgba(16, 185, 129, 0.12); font-size: 9px; font-weight: 700; border-radius: 4px; padding: 2px 6px;")
         header.addWidget(badge)
         layout.addLayout(header)
 
@@ -98,6 +99,21 @@ class QuotaCard(QFrame):
         sub_lbl = QLabel(str(sub_text))
         sub_lbl.setStyleSheet("color: #626c85; font-size: 10px;")
         layout.addWidget(sub_lbl)
+
+        reset_time = quota_data.get("reset_time")
+        if not reset_time:
+            from engine.model_scanner import ModelScanner
+            r_info = ModelScanner.get_provider_reset_info(provider_id)
+            reset_time = r_info.get("reset_time", "")
+
+        if provider_id == "ollama":
+            reset_lbl = QLabel("⏱ Unlimited Local • No Limits")
+            reset_lbl.setStyleSheet("color: #00D1FF; font-size: 10px; font-weight: 600;")
+            layout.addWidget(reset_lbl)
+        elif reset_time:
+            reset_lbl = QLabel(f"⏱ Limits Reset: {reset_time}")
+            reset_lbl.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 600;")
+            layout.addWidget(reset_lbl)
 
 
 class UsageDialog(QDialog):
@@ -190,9 +206,9 @@ class UsageDialog(QDialog):
 
         # Per-Model Table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
-            "Provider", "Model Name", "Requests", "Prompt Tokens",
+            "Provider", "Model Name", "Tier", "Limit Reset Time", "Requests", "Prompt Tokens",
             "Completion Tokens", "Total Tokens", "Avg Latency"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -343,13 +359,24 @@ class UsageDialog(QDialog):
         self.table.setRowCount(len(models))
 
         for row_idx, m in enumerate(models):
-            p_item = QTableWidgetItem(m["provider_id"].upper())
+            pid = m.get("provider_id", "")
+            r_info = ModelScanner.get_provider_reset_info(pid)
+            tier_name = r_info.get("tier_type", "Free Tier")
+            reset_time_name = r_info.get("reset_time", "00:00 UTC")
+
+            p_item = QTableWidgetItem(pid.upper())
             name_item = QTableWidgetItem(m["model_name"])
+            tier_item = QTableWidgetItem(tier_name)
+            reset_item = QTableWidgetItem(reset_time_name)
             req_item = QTableWidgetItem(f"{m['requests']:,}")
             prompt_item = QTableWidgetItem(f"{m['prompt_tokens']:,}")
             comp_item = QTableWidgetItem(f"{m['completion_tokens']:,}")
             total_item = QTableWidgetItem(f"{m['total_tokens']:,}")
             lat_item = QTableWidgetItem(f"{m['avg_latency_ms']:.0f} ms")
+
+            # Center align tier and reset columns
+            tier_item.setTextAlignment(Qt.AlignCenter)
+            reset_item.setTextAlignment(Qt.AlignCenter)
 
             # Right align numerical columns
             for item in [req_item, prompt_item, comp_item, total_item, lat_item]:
@@ -357,11 +384,13 @@ class UsageDialog(QDialog):
 
             self.table.setItem(row_idx, 0, p_item)
             self.table.setItem(row_idx, 1, name_item)
-            self.table.setItem(row_idx, 2, req_item)
-            self.table.setItem(row_idx, 3, prompt_item)
-            self.table.setItem(row_idx, 4, comp_item)
-            self.table.setItem(row_idx, 5, total_item)
-            self.table.setItem(row_idx, 6, lat_item)
+            self.table.setItem(row_idx, 2, tier_item)
+            self.table.setItem(row_idx, 3, reset_item)
+            self.table.setItem(row_idx, 4, req_item)
+            self.table.setItem(row_idx, 5, prompt_item)
+            self.table.setItem(row_idx, 6, comp_item)
+            self.table.setItem(row_idx, 7, total_item)
+            self.table.setItem(row_idx, 8, lat_item)
 
     def _reset_usage(self):
         reply = QMessageBox.question(

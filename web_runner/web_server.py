@@ -1,5 +1,5 @@
 """
-Dual-mode Flask and PyWebView runner for Sage AI (Lunar Engine).
+Dual-mode Flask and PyWebView runner for Sage AI.
 Provides HTTP API endpoints and an embedded web interface.
 """
 import sys
@@ -18,7 +18,7 @@ INDEX_HTML = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sage AI - Lunar Engine (Web View)</title>
+    <title>Sage AI (Web View)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -123,14 +123,14 @@ INDEX_HTML = """
 <body>
     <div id="sidebar">
         <div class="brand"><img src="/assets/logo.png" width="28" height="28" style="vertical-align: middle; border-radius: 6px; margin-right: 8px;">SAGE AI</div>
-        <div class="sub">LUNAR ENGINE DUAL-MODE</div>
+        <div class="sub">SAGE ENGINE DUAL-MODE</div>
         <button class="btn-new" onclick="newChat()">＋ New Chat</button>
     </div>
     <div id="main">
         <div id="messages">
             <div class="bubble assistant">
                 <div class="bubble-header"><img src="/assets/logo.png" width="18" height="18" style="vertical-align: middle; margin-right: 6px;">SAGE AI • Ready</div>
-                <div>Welcome to Sage AI Web Runner. Lunar Engine multi-provider waterfall routing is active.</div>
+                <div>Welcome to Sage AI Web Runner. Sage Engine multi-provider waterfall routing is active.</div>
             </div>
         </div>
         <div id="input-area">
@@ -187,7 +187,7 @@ INDEX_HTML = """
 
             container.innerHTML += `
                 <div class="bubble assistant">
-                    <div class="bubble-header">SAGE AI • ${data.model_name || 'Lunar Engine'}</div>
+                    <div class="bubble-header">SAGE AI • ${data.model_name || 'Sage Engine'}</div>
                     <div>${(data.text || '').replace(/\\n/g, '<br>')}</div>
                 </div>
             `;
@@ -223,7 +223,7 @@ def index():
 def status():
     return jsonify({
         "status": "online",
-        "engine": "Lunar Engine v1.0",
+        "engine": "Sage Engine v1.0",
         "providers_loaded": list(router.providers.keys())
     })
 
@@ -284,7 +284,7 @@ def run_web_app(port: int = 5000, use_webview: bool = False):
             import webview
             t = threading.Thread(target=lambda: app.run(port=port, debug=False, use_reloader=False), daemon=True)
             t.start()
-            webview.create_window("Sage AI - Lunar Engine", f"http://127.0.0.1:{port}", width=1100, height=720)
+            webview.create_window("Sage AI", f"http://127.0.0.1:{port}", width=1100, height=720)
             webview.start()
             return
         except ImportError:

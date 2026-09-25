@@ -48,7 +48,7 @@ def run():
         "<html lang=\"en\">\n"
         "<head>\n"
         "  <meta charset=\"UTF-8\">\n"
-        "  <title>Sage AI - Lunar Workspace</title>\n"
+        "  <title>Sage AI - Sage Workspace</title>\n"
         "  <link rel=\"stylesheet\" href=\"style.css\">\n"
         "</head>\n"
         "<body>\n"

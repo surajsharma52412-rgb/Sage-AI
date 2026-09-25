@@ -1,5 +1,5 @@
 """
-UI Components package for Sage AI (Lunar Engine).
+UI Components package for Sage AI.
 """
 from .sidebar import Sidebar
 from .top_bar import TopBar
@@ -23,11 +23,33 @@ from .collab_dialog import CollabDialog, CollabPanelWidget
 from .collab_whiteboard import CollabWhiteboardWidget, WhiteboardCanvas
 from .home_dashboard_view import HomeDashboardView
 from .onboarding_dialog import FirstLaunchOnboardingDialog
+from .global_ranking_view import GlobalRankingView
+from .animation_system import (
+    PerformanceTier,
+    MotionTokens,
+    AnimationManager,
+    get_anim_manager,
+    fade_in,
+    fade_out,
+    slide_in_from_bottom,
+    modal_entrance,
+    smooth_scroll_to,
+    animate_number_counter,
+    button_micro_press,
+    ShimmerSkeleton,
+)
+from .agent_workflow_animator import (
+    AgentStatus,
+    AgentNodeBadge,
+    WorkflowConnector,
+    MultiAgentWorkflowVisualizer,
+)
 
 __all__ = [
     "Sidebar",
     "TopBar",
     "ChatViewport",
+    "GlobalRankingView",
     "MessageBubble",
     "LiveWorkingPanel",
     "MessageInputBar",
@@ -49,5 +71,21 @@ __all__ = [
     "WhiteboardCanvas",
     "HomeDashboardView",
     "FirstLaunchOnboardingDialog",
+    "PerformanceTier",
+    "MotionTokens",
+    "AnimationManager",
+    "get_anim_manager",
+    "fade_in",
+    "fade_out",
+    "slide_in_from_bottom",
+    "modal_entrance",
+    "smooth_scroll_to",
+    "animate_number_counter",
+    "button_micro_press",
+    "ShimmerSkeleton",
+    "AgentStatus",
+    "AgentNodeBadge",
+    "WorkflowConnector",
+    "MultiAgentWorkflowVisualizer",
 ]
 

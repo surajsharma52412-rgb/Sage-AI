@@ -49,7 +49,7 @@ class TestTerminalLaunchAndConcurrency(unittest.TestCase):
         # Simulate Ollama starting up and responding after 1 second
         is_running_state = [False]
 
-        def fake_is_running(url="http://127.0.0.1:11434"):
+        def fake_is_running(url="http://127.0.0.1:11434", *args, **kwargs):
             return is_running_state[0]
 
         def delayed_server_ready():

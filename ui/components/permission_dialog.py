@@ -1,5 +1,5 @@
 """
-Human-in-the-Loop Permission Dialog for Sage AI (Lunar Engine).
+Human-in-the-Loop Permission Dialog for Sage AI.
 Ensures zero unapproved external actions (sending emails, modifying critical files, executing commands).
 """
 from typing import Dict, Any, Optional
@@ -58,7 +58,7 @@ class PermissionDialog(QDialog):
         title_col.addWidget(title_lbl)
 
         sub_lbl = QLabel("Sage AI prepared this action for you. Please review and approve before it proceeds.")
-        sub_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px;")
+        sub_lbl.setStyleSheet("color: #94A3B8; font-size: 12px;")
         title_col.addWidget(sub_lbl)
 
         header.addLayout(title_col, 1)
@@ -85,18 +85,18 @@ class PermissionDialog(QDialog):
 
         row1 = QHBoxLayout()
         act_lbl = QLabel("Action:")
-        act_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 600; min-width: 65px;")
+        act_lbl.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: 600; min-width: 65px;")
         act_val = QLabel(self.action_type)
-        act_val.setStyleSheet("color: #ffb84d; font-size: 12.5px; font-weight: 700;")
+        act_val.setStyleSheet("color: #ffb84d; font-size: 13px; font-weight: 700;")
         row1.addWidget(act_lbl)
         row1.addWidget(act_val, 1)
         card_layout.addLayout(row1)
 
         row2 = QHBoxLayout()
         tgt_lbl = QLabel("Target:")
-        tgt_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 600; min-width: 65px;")
+        tgt_lbl.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: 600; min-width: 65px;")
         tgt_val = QLabel(self.target)
-        tgt_val.setStyleSheet("color: #00D1FF; font-size: 12.5px; font-weight: 600;")
+        tgt_val.setStyleSheet("color: #00D1FF; font-size: 13px; font-weight: 600;")
         row2.addWidget(tgt_lbl)
         row2.addWidget(tgt_val, 1)
         card_layout.addLayout(row2)
@@ -104,9 +104,9 @@ class PermissionDialog(QDialog):
         if self.subject:
             row3 = QHBoxLayout()
             sub_title_lbl = QLabel("Subject:")
-            sub_title_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 600; min-width: 65px;")
+            sub_title_lbl.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: 600; min-width: 65px;")
             sub_val = QLabel(self.subject)
-            sub_val.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 600;")
+            sub_val.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 600;")
             row3.addWidget(sub_title_lbl)
             row3.addWidget(sub_val, 1)
             card_layout.addLayout(row3)

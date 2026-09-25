@@ -1,5 +1,5 @@
 """
-SQLite Database Manager for Sage AI (Lunar Engine).
+SQLite Database Manager for Sage AI.
 Provides thread-safe storage for chat sessions, message logs, and application preferences.
 """
 import sqlite3
@@ -89,7 +89,21 @@ class DatabaseManager:
                     description TEXT,
                     context_length INTEGER DEFAULT 0,
                     is_free INTEGER DEFAULT 0,
+                    tier_type TEXT DEFAULT 'Free Tier',
+                    reset_time TEXT DEFAULT '',
                     discovered_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS model_audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    provider_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    display_name TEXT,
+                    is_free INTEGER DEFAULT 0,
+                    change_summary TEXT,
+                    details_json TEXT
                 );
 
                 CREATE TABLE IF NOT EXISTS provider_quotas (
@@ -99,6 +113,8 @@ class DatabaseManager:
                     remaining_amount REAL DEFAULT 0.0,
                     currency_or_unit TEXT DEFAULT 'USD',
                     is_free_tier INTEGER DEFAULT 0,
+                    tier_type TEXT DEFAULT 'Free Tier',
+                    reset_time TEXT DEFAULT '',
                     details_json TEXT,
                     last_checked TEXT NOT NULL
                 );
@@ -193,6 +209,9 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_usage_provider ON model_usage(provider_id);
                 CREATE INDEX IF NOT EXISTS idx_usage_model ON model_usage(model_name);
                 CREATE INDEX IF NOT EXISTS idx_discovered_provider ON discovered_models(provider_id);
+                CREATE INDEX IF NOT EXISTS idx_audit_event ON model_audit_log(event_type);
+                CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON model_audit_log(timestamp DESC);
+                CREATE INDEX IF NOT EXISTS idx_audit_provider ON model_audit_log(provider_id);
                 CREATE INDEX IF NOT EXISTS idx_agent_logs_task ON agent_logs(task_id);
                 CREATE INDEX IF NOT EXISTS idx_agent_logs_agent ON agent_logs(agent_name);
                 CREATE INDEX IF NOT EXISTS idx_shared_memory_type ON shared_memory(memory_type);
@@ -201,7 +220,81 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
                 CREATE INDEX IF NOT EXISTS idx_workflow_approvals_run ON workflow_approvals(run_id);
                 CREATE INDEX IF NOT EXISTS idx_workflow_approvals_status ON workflow_approvals(status);
+
+                CREATE TABLE IF NOT EXISTS model_registry (
+                    model_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    provider_id TEXT NOT NULL,
+                    base_quality REAL DEFAULT 8.0,
+                    task_capabilities_json TEXT NOT NULL,
+                    context_length INTEGER DEFAULT 32768,
+                    speed_score REAL DEFAULT 8.0,
+                    is_free INTEGER DEFAULT 1,
+                    cost_per_m_tokens REAL DEFAULT 0.0,
+                    description TEXT,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS model_health (
+                    model_id TEXT PRIMARY KEY,
+                    provider_id TEXT NOT NULL,
+                    status TEXT DEFAULT 'available',
+                    consecutive_failures INTEGER DEFAULT 0,
+                    total_requests INTEGER DEFAULT 0,
+                    successful_requests INTEGER DEFAULT 0,
+                    avg_latency_ms REAL DEFAULT 0.0,
+                    cooldown_until TEXT,
+                    last_error_code TEXT,
+                    last_error_msg TEXT,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS routing_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    task_type TEXT NOT NULL,
+                    prompt_snippet TEXT NOT NULL,
+                    selected_model_id TEXT NOT NULL,
+                    provider_id TEXT NOT NULL,
+                    global_rank INTEGER DEFAULT 1,
+                    dynamic_score REAL DEFAULT 0.0,
+                    fallback_used INTEGER DEFAULT 0,
+                    fallback_count INTEGER DEFAULT 0,
+                    attempted_models_json TEXT,
+                    success INTEGER DEFAULT 1,
+                    latency_ms REAL DEFAULT 0.0,
+                    validation_passed INTEGER DEFAULT 1
+                );
+
+                CREATE TABLE IF NOT EXISTS zero_cost_guard_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    original_model TEXT NOT NULL,
+                    original_provider TEXT,
+                    shifted_model TEXT NOT NULL,
+                    shifted_provider TEXT,
+                    cost_saved_rs REAL DEFAULT 0.0,
+                    reason TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_model_registry_provider ON model_registry(provider_id);
+                CREATE INDEX IF NOT EXISTS idx_model_health_status ON model_health(status);
+                CREATE INDEX IF NOT EXISTS idx_routing_logs_timestamp ON routing_logs(timestamp DESC);
+                CREATE INDEX IF NOT EXISTS idx_routing_logs_task ON routing_logs(task_type);
             """)
+
+            # Safe schema migrations for existing databases
+            for migration_sql in [
+                "ALTER TABLE provider_quotas ADD COLUMN tier_type TEXT DEFAULT 'Free Tier';",
+                "ALTER TABLE provider_quotas ADD COLUMN reset_time TEXT DEFAULT '';",
+                "ALTER TABLE discovered_models ADD COLUMN tier_type TEXT DEFAULT 'Free Tier';",
+                "ALTER TABLE discovered_models ADD COLUMN reset_time TEXT DEFAULT '';",
+            ]:
+                try:
+                    conn.execute(migration_sql)
+                except Exception:
+                    pass
+
             conn.commit()
         finally:
             conn.close()
@@ -560,18 +653,23 @@ class DatabaseManager:
                 ctx = m.get("context_length") or m.get("context_window", 0)
                 is_free = 1 if m.get("is_free") or ":free" in m_name.lower() or "free" in display.lower() else 0
 
+                tier_type = m.get("tier_type") or ("100% Free Offline" if provider_id == "ollama" else ("Free Tier" if is_free else "Paid / Credits"))
+                reset_time = m.get("reset_time") or ""
+
                 conn.execute(
                     """
-                    INSERT INTO discovered_models (id, provider_id, model_name, display_name, description, context_length, is_free, discovered_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO discovered_models (id, provider_id, model_name, display_name, description, context_length, is_free, tier_type, reset_time, discovered_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         display_name = excluded.display_name,
                         description = excluded.description,
                         context_length = excluded.context_length,
                         is_free = excluded.is_free,
+                        tier_type = excluded.tier_type,
+                        reset_time = excluded.reset_time,
                         discovered_at = excluded.discovered_at;
                     """,
-                    (record_id, provider_id, m_name, display, desc, ctx, is_free, now)
+                    (record_id, provider_id, m_name, display, desc, ctx, is_free, tier_type, reset_time, now)
                 )
             conn.commit()
         finally:
@@ -609,23 +707,134 @@ class DatabaseManager:
         finally:
             conn.close()
 
+    def remove_discovered_models(self, provider_id: str, model_names: List[str]):
+        """Removes specific models that are no longer available from a provider."""
+        if not model_names:
+            return
+        conn = self._get_connection()
+        try:
+            conn.executemany(
+                "DELETE FROM discovered_models WHERE provider_id = ? AND model_name = ?;",
+                [(provider_id, m) for m in model_names]
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    # --- Model Audit & Trace Logging Operations ---
+
+    def log_model_trace_events(self, events: List[Dict[str, Any]]) -> int:
+        """Persists model addition, removal, and change events into model_audit_log."""
+        if not events:
+            return 0
+        conn = self._get_connection()
+        now = datetime.now().isoformat()
+        inserted = 0
+        try:
+            for ev in events:
+                ts = ev.get("timestamp") or now
+                provider = ev.get("provider_id", "unknown")
+                event_type = ev.get("event_type", "changed")  # added_free, added_paid, removed, changed
+                m_name = ev.get("model_name", "")
+                d_name = ev.get("display_name") or m_name
+                is_free = 1 if ev.get("is_free") else 0
+                summary = ev.get("change_summary", "")
+                details = json.dumps(ev.get("details", {})) if isinstance(ev.get("details"), (dict, list)) else ev.get("details", "")
+
+                conn.execute(
+                    """
+                    INSERT INTO model_audit_log (
+                        timestamp, provider_id, event_type, model_name, display_name, is_free, change_summary, details_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (ts, provider, event_type, m_name, d_name, is_free, summary, details)
+                )
+                inserted += 1
+            conn.commit()
+            return inserted
+        finally:
+            conn.close()
+
+    def get_recent_model_audit_logs(
+        self,
+        limit: int = 50,
+        event_type: Optional[str] = None,
+        provider_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieves recent model trace audit events, optionally filtered."""
+        conn = self._get_connection()
+        try:
+            query = "SELECT * FROM model_audit_log"
+            params = []
+            conditions = []
+            if event_type:
+                conditions.append("event_type = ?")
+                params.append(event_type)
+            if provider_id:
+                conditions.append("provider_id = ?")
+                params.append(provider_id)
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            query += " ORDER BY id DESC LIMIT ?;"
+            params.append(limit)
+
+            rows = conn.execute(query, params).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_model_audit_summary(self) -> Dict[str, Any]:
+        """Returns counts of model trace events by event_type and latest audit timestamp."""
+        conn = self._get_connection()
+        try:
+            summary = {
+                "total_events": 0,
+                "added_free": 0,
+                "added_paid": 0,
+                "removed": 0,
+                "changed": 0,
+                "latest_timestamp": None
+            }
+            rows = conn.execute(
+                "SELECT event_type, COUNT(*) as count FROM model_audit_log GROUP BY event_type;"
+            ).fetchall()
+            for r in rows:
+                ev_t = r["event_type"]
+                cnt = r["count"]
+                summary["total_events"] += cnt
+                if ev_t in summary:
+                    summary[ev_t] = cnt
+
+            latest = conn.execute(
+                "SELECT timestamp FROM model_audit_log ORDER BY id DESC LIMIT 1;"
+            ).fetchone()
+            if latest:
+                summary["latest_timestamp"] = latest["timestamp"]
+            return summary
+        finally:
+            conn.close()
+
     # --- Provider Quotas & Balances Operations ---
 
     def save_provider_quota(self, provider_id: str, quota_data: Dict[str, Any]):
-        """Saves latest quota/credit data for a provider."""
+        """Saves latest quota/credit data for a provider including tier_type and reset_time."""
         conn = self._get_connection()
         now = datetime.now().isoformat()
+        tier_type = quota_data.get("tier_type") or ("100% Free Offline" if provider_id == "ollama" else ("Free Tier" if quota_data.get("is_free_tier") else "Paid / Credits"))
+        reset_time = quota_data.get("reset_time") or ""
         try:
             conn.execute(
                 """
-                INSERT INTO provider_quotas (provider_id, total_limit, used_amount, remaining_amount, currency_or_unit, is_free_tier, details_json, last_checked)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO provider_quotas (provider_id, total_limit, used_amount, remaining_amount, currency_or_unit, is_free_tier, tier_type, reset_time, details_json, last_checked)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(provider_id) DO UPDATE SET
                     total_limit = excluded.total_limit,
                     used_amount = excluded.used_amount,
                     remaining_amount = excluded.remaining_amount,
                     currency_or_unit = excluded.currency_or_unit,
                     is_free_tier = excluded.is_free_tier,
+                    tier_type = excluded.tier_type,
+                    reset_time = excluded.reset_time,
                     details_json = excluded.details_json,
                     last_checked = excluded.last_checked;
                 """,
@@ -636,6 +845,8 @@ class DatabaseManager:
                     float(quota_data.get("remaining_amount", 0.0) or 0.0),
                     quota_data.get("currency_or_unit", "USD"),
                     1 if quota_data.get("is_free_tier") else 0,
+                    tier_type,
+                    reset_time,
                     json.dumps(quota_data.get("details", {})),
                     now
                 )
@@ -652,6 +863,10 @@ class DatabaseManager:
             if row:
                 res = dict(row)
                 res["details"] = json.loads(res.get("details_json") or "{}")
+                if not res.get("tier_type"):
+                    res["tier_type"] = "100% Free Offline" if provider_id == "ollama" else ("Free Tier" if res.get("is_free_tier") else "Paid / Credits")
+                if "reset_time" not in res:
+                    res["reset_time"] = ""
                 return res
             return None
         finally:
@@ -666,7 +881,12 @@ class DatabaseManager:
             for r in rows:
                 d = dict(r)
                 d["details"] = json.loads(d.get("details_json") or "{}")
-                out[d["provider_id"]] = d
+                pid = d.get("provider_id", "")
+                if not d.get("tier_type"):
+                    d["tier_type"] = "100% Free Offline" if pid == "ollama" else ("Free Tier" if d.get("is_free_tier") else "Paid / Credits")
+                if "reset_time" not in d:
+                    d["reset_time"] = ""
+                out[pid] = d
             return out
         finally:
             conn.close()
@@ -1263,6 +1483,270 @@ class DatabaseManager:
             """, (status, now, resolver_note, approval_id))
             conn.commit()
             return cur.rowcount > 0
+        finally:
+            conn.close()
+
+    # --- Auto Router: Model Registry, Health & Routing Logs ---
+
+    def upsert_registered_model(self, model_data: Dict[str, Any]):
+        """Inserts or updates a model specification in the registry."""
+        conn = self._get_connection()
+        now = datetime.now().isoformat()
+        try:
+            conn.execute("""
+                INSERT INTO model_registry (
+                    model_id, display_name, provider_id, base_quality,
+                    task_capabilities_json, context_length, speed_score,
+                    is_free, cost_per_m_tokens, description, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(model_id) DO UPDATE SET
+                    display_name=excluded.display_name,
+                    provider_id=excluded.provider_id,
+                    base_quality=excluded.base_quality,
+                    task_capabilities_json=excluded.task_capabilities_json,
+                    context_length=excluded.context_length,
+                    speed_score=excluded.speed_score,
+                    is_free=excluded.is_free,
+                    cost_per_m_tokens=excluded.cost_per_m_tokens,
+                    description=excluded.description;
+            """, (
+                model_data["model_id"],
+                model_data["display_name"],
+                model_data["provider_id"],
+                model_data.get("base_quality", 8.0),
+                json.dumps(model_data.get("task_capabilities", {})),
+                model_data.get("context_length", 32768),
+                model_data.get("speed_score", 8.0),
+                1 if model_data.get("is_free", True) else 0,
+                model_data.get("cost_per_m_tokens", 0.0),
+                model_data.get("description", ""),
+                now
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def upsert_registered_models_batch(self, models_data: List[Dict[str, Any]]):
+        """Inserts or updates multiple model specifications in a single fast transaction."""
+        if not models_data:
+            return
+        conn = self._get_connection()
+        now = datetime.now().isoformat()
+        try:
+            params = [
+                (
+                    m["model_id"],
+                    m["display_name"],
+                    m["provider_id"],
+                    m.get("base_quality", 8.0),
+                    json.dumps(m.get("task_capabilities", {})),
+                    m.get("context_length", 32768),
+                    m.get("speed_score", 8.0),
+                    1 if m.get("is_free", True) else 0,
+                    m.get("cost_per_m_tokens", 0.0),
+                    m.get("description", ""),
+                    now
+                )
+                for m in models_data
+            ]
+            conn.executemany("""
+                INSERT INTO model_registry (
+                    model_id, display_name, provider_id, base_quality,
+                    task_capabilities_json, context_length, speed_score,
+                    is_free, cost_per_m_tokens, description, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(model_id) DO UPDATE SET
+                    display_name=excluded.display_name,
+                    provider_id=excluded.provider_id,
+                    base_quality=excluded.base_quality,
+                    task_capabilities_json=excluded.task_capabilities_json,
+                    context_length=excluded.context_length,
+                    speed_score=excluded.speed_score,
+                    is_free=excluded.is_free,
+                    cost_per_m_tokens=excluded.cost_per_m_tokens,
+                    description=excluded.description;
+            """, params)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_registered_models(self) -> List[Dict[str, Any]]:
+        """Retrieves all registered models from database."""
+        conn = self._get_connection()
+        try:
+            rows = conn.execute("SELECT * FROM model_registry ORDER BY provider_id, model_id;").fetchall()
+            result = []
+            for r in rows:
+                item = dict(r)
+                try:
+                    item["task_capabilities"] = json.loads(item.get("task_capabilities_json", "{}"))
+                except Exception:
+                    item["task_capabilities"] = {}
+                result.append(item)
+            return result
+        finally:
+            conn.close()
+
+    def upsert_model_health(self, health_data: Dict[str, Any]):
+        """Updates health, cooldown, and error tracking for a model."""
+        conn = self._get_connection()
+        now = datetime.now().isoformat()
+        try:
+            conn.execute("""
+                INSERT INTO model_health (
+                    model_id, provider_id, status, consecutive_failures,
+                    total_requests, successful_requests, avg_latency_ms,
+                    cooldown_until, last_error_code, last_error_msg, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(model_id) DO UPDATE SET
+                    status=excluded.status,
+                    consecutive_failures=excluded.consecutive_failures,
+                    total_requests=excluded.total_requests,
+                    successful_requests=excluded.successful_requests,
+                    avg_latency_ms=excluded.avg_latency_ms,
+                    cooldown_until=excluded.cooldown_until,
+                    last_error_code=excluded.last_error_code,
+                    last_error_msg=excluded.last_error_msg,
+                    updated_at=excluded.updated_at;
+            """, (
+                health_data["model_id"],
+                health_data.get("provider_id", ""),
+                health_data.get("status", "available"),
+                health_data.get("consecutive_failures", 0),
+                health_data.get("total_requests", 0),
+                health_data.get("successful_requests", 0),
+                health_data.get("avg_latency_ms", 0.0),
+                health_data.get("cooldown_until"),
+                health_data.get("last_error_code"),
+                health_data.get("last_error_msg"),
+                now
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_model_health_all(self) -> Dict[str, Dict[str, Any]]:
+        """Returns health dictionaries for all models keyed by model_id."""
+        conn = self._get_connection()
+        try:
+            rows = conn.execute("SELECT * FROM model_health;").fetchall()
+            return {r["model_id"]: dict(r) for r in rows}
+        finally:
+            conn.close()
+
+    def get_model_health(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Returns health dictionary for a specific model."""
+        conn = self._get_connection()
+        try:
+            row = conn.execute("SELECT * FROM model_health WHERE model_id = ?;", (model_id,)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def log_routing_decision(self, log_data: Dict[str, Any]):
+        """Logs an auto-routing execution event to routing_logs."""
+        conn = self._get_connection()
+        now = datetime.now().isoformat()
+        try:
+            conn.execute("""
+                INSERT INTO routing_logs (
+                    timestamp, task_type, prompt_snippet, selected_model_id,
+                    provider_id, global_rank, dynamic_score, fallback_used,
+                    fallback_count, attempted_models_json, success,
+                    latency_ms, validation_passed
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, (
+                now,
+                log_data.get("task_type", "general_chat"),
+                log_data.get("prompt_snippet", "")[:120],
+                log_data.get("selected_model_id", ""),
+                log_data.get("provider_id", ""),
+                log_data.get("global_rank", 1),
+                log_data.get("dynamic_score", 0.0),
+                1 if log_data.get("fallback_used", False) else 0,
+                log_data.get("fallback_count", 0),
+                json.dumps(log_data.get("attempted_models", [])),
+                1 if log_data.get("success", True) else 0,
+                log_data.get("latency_ms", 0.0),
+                1 if log_data.get("validation_passed", True) else 0
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_recent_routing_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Retrieves recent auto-routing decision logs."""
+        conn = self._get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM routing_logs ORDER BY id DESC LIMIT ?;",
+                (limit,)
+            ).fetchall()
+            result = []
+            for r in rows:
+                item = dict(r)
+                try:
+                    item["attempted_models"] = json.loads(item.get("attempted_models_json", "[]"))
+                except Exception:
+                    item["attempted_models"] = []
+                result.append(item)
+            return result
+        finally:
+            conn.close()
+
+    # --- Zero-Cost Guard Architecture Logs ---
+
+    def log_zero_cost_shift(self, shift_data: Dict[str, Any]) -> int:
+        """Records an intercepted AI request shifted to a 0 Rs free model."""
+        conn = self._get_connection()
+        now = datetime.now().isoformat()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO zero_cost_guard_logs (
+                    timestamp, original_model, original_provider,
+                    shifted_model, shifted_provider, cost_saved_rs, reason
+                ) VALUES (?, ?, ?, ?, ?, ?, ?);
+            """, (
+                now,
+                str(shift_data.get("original_model", "unknown")),
+                str(shift_data.get("original_provider", "")),
+                str(shift_data.get("shifted_model", "")),
+                str(shift_data.get("shifted_provider", "")),
+                float(shift_data.get("cost_saved_rs", 0.0)),
+                str(shift_data.get("reason", ""))
+            ))
+            conn.commit()
+            return cur.lastrowid or 0
+        finally:
+            conn.close()
+
+    def get_zero_cost_shifts(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Retrieves history of zero-cost interceptions and model shifts."""
+        conn = self._get_connection()
+        try:
+            rows = conn.execute("""
+                SELECT * FROM zero_cost_guard_logs
+                ORDER BY id DESC LIMIT ?;
+            """, (limit,)).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_zero_cost_stats(self) -> Dict[str, Any]:
+        """Calculates total cost saved in Rs and total intercepted requests."""
+        conn = self._get_connection()
+        try:
+            row = conn.execute("""
+                SELECT COUNT(*) as total_intercepted, COALESCE(SUM(cost_saved_rs), 0.0) as total_saved_rs
+                FROM zero_cost_guard_logs;
+            """).fetchone()
+            if row:
+                return {
+                    "total_intercepted": int(row["total_intercepted"] or 0),
+                    "total_saved_rs": round(float(row["total_saved_rs"] or 0.0), 2)
+                }
+            return {"total_intercepted": 0, "total_saved_rs": 0.0}
         finally:
             conn.close()
 

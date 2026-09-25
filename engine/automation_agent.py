@@ -1,5 +1,5 @@
 """
-AI Automation Engine & Services for Sage AI (Lunar Engine).
+AI Automation Engine & Services for Sage AI.
 Coordinates task automations with Human-in-the-Loop permission checks:
 - Gmail unread message scanning & intelligent reply drafting
 - Mandatory permission gate verification before sending emails or modifying system files
@@ -51,7 +51,7 @@ MOCK_SANDBOX_EMAILS = [
         "id": "mock_msg_103",
         "sender": "notifications@github.com",
         "sender_name": "GitHub Notifications",
-        "subject": "[Sage-AI/Lunar] Pull Request #42: Dynamic Model Scanning Approved",
+        "subject": "[Sage-AI] Pull Request #42: Dynamic Model Scanning Approved",
         "date": "Yesterday, 4:20 PM",
         "snippet": "All 30 unit tests passed. Ready to merge into main branch.",
         "body": "All 30 unit tests passed. Coverage: 98%. Ready to merge into main branch upon maintainer review.",

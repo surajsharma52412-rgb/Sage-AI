@@ -1,5 +1,5 @@
 """
-Advanced Code Editor Component for Sage AI (Lunar Engine).
+Advanced Code Editor Component for Sage AI.
 Features:
 - Integrated Multi-Language Syntax Highlighter (Python, JS, HTML, CSS, C++, Rust, Go, SQL, etc.)
 - Real-Time Intelligent Autocomplete Helper (IntelliSense popup triggered as you type, e.g. 'p' -> 'print')
@@ -221,6 +221,10 @@ class CodeEditor(QPlainTextEdit):
         # 5. Autocompletion Helper
         self.completer: Optional[QCompleter] = None
         self.completer_model = QStringListModel(self)
+        self._word_harvest_timer = QTimer(self)
+        self._word_harvest_timer.setSingleShot(True)
+        self._word_harvest_timer.setInterval(1000)
+        self._word_harvest_timer.timeout.connect(self._update_completer_words)
         self._init_completer()
 
         self.highlight_current_line()
@@ -266,8 +270,10 @@ class CodeEditor(QPlainTextEdit):
         return lang_display_names.get(lang_key, "Text")
 
     def _collect_document_words(self) -> List[str]:
-        """Extracts identifier words from current document."""
+        """Extracts identifier words from current document (capped at 100k chars for zero frame drops)."""
         doc_text = self.toPlainText()
+        if len(doc_text) > 100_000:
+            doc_text = doc_text[:100_000]
         return sorted(list(set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b", doc_text))))
 
     # --- Line Number Gutter Logic ---
@@ -374,7 +380,7 @@ class CodeEditor(QPlainTextEdit):
                 border-radius: 6px;
                 padding: 4px;
                 font-family: Consolas, monospace;
-                font-size: 11.5px;
+                font-size: 12px;
                 outline: none;
             }
             QListView::item {
@@ -417,10 +423,12 @@ class CodeEditor(QPlainTextEdit):
         self.completer_model.setStringList(sorted_words)
 
     def _text_under_cursor(self) -> str:
-        """Extracts the word or identifier prefix directly before cursor."""
+        """Extracts the identifier prefix directly preceding cursor."""
         tc = self.textCursor()
-        tc.select(QTextCursor.WordUnderCursor)
-        return tc.selectedText()
+        line = tc.block().text()
+        pos = tc.positionInBlock()
+        m = re.search(r"([a-zA-Z_][a-zA-Z0-9_]*)$", line[:pos])
+        return m.group(1) if m else ""
 
     def _insert_completion(self, completion: str):
         """Replaces prefix under cursor with selected completion item."""
@@ -489,15 +497,17 @@ class CodeEditor(QPlainTextEdit):
 
         prefix = self._text_under_cursor()
         # Trigger popup when prefix has at least 1 letter (e.g. user writes 'p')
-        if len(prefix) >= 1 and prefix.isalnum() or prefix.startswith("_"):
-            self._update_completer_words()
+        if len(prefix) >= 1 and (prefix.isalnum() or prefix.startswith("_")):
+            # Schedule idle word harvest without dropping a single frame while typing
+            if hasattr(self, "_word_harvest_timer"):
+                self._word_harvest_timer.start(1000)
             self.completer.setCompletionPrefix(prefix)
 
             popup = self.completer.popup()
             if self.completer.completionCount() > 0:
                 popup.setCurrentIndex(self.completer.completionModel().index(0, 0))
                 cr = self.cursorRect()
-                cr.setWidth(self.completer.popup().sizeHintForColumn(0) + self.completer.popup().verticalScrollBar().sizeHint().width() + 24)
+                cr.setWidth(240)
                 self.completer.complete(cr)
             else:
                 popup.hide()

@@ -54,9 +54,15 @@ def run_desktop():
     if not app_icon.isNull():
         app.setWindowIcon(app_icon)
 
-    # Apply Dark Emerald & Cyberpunk Slate QSS Theme
-    from ui.styles.qss_theme import QSS_STYLE
-    app.setStyleSheet(QSS_STYLE)
+    # Apply Dark Emerald & Cyberpunk Slate QSS Theme upfront
+    from database.db_manager import get_db
+    from ui.styles.qss_theme import get_theme_qss, QSS_STYLE
+    try:
+        saved_theme = get_db().get_setting("app_theme_key", "cyberpunk")
+    except Exception:
+        saved_theme = "cyberpunk"
+    app.setStyleSheet(get_theme_qss(saved_theme) if saved_theme else QSS_STYLE)
+    app._current_theme_key = saved_theme
 
     from ui.main_window import MainWindow
     window = MainWindow()
@@ -74,7 +80,7 @@ def run_web(port: int = 5000, use_webview: bool = False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Sage AI (Lunar Engine) Desktop & Web Assistant")
+    parser = argparse.ArgumentParser(description="Sage AI Desktop & Web Assistant")
     parser.add_argument(
         "--mode",
         choices=["desktop", "web", "webview"],

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="navbar">
+            <div class="logo">⚡ Application Dashboard</div>
+            <nav class="nav-links">
+                <a href="#dashboard" class="active">Dashboard</a>
+                <a href="#items">Items</a>
+                <a href="#settings">Settings</a>
+            </nav>
+        </header>
+        <main class="main-content">
+            <section class="hero-banner">
+                <h1>Welcome to your Dashboard</h1>
+                <p>Real-time analytics and management interface.</p>
+            </section>
+            <section class="cards-grid" id="items-container">
+                <!-- Loaded dynamically -->
+            </section>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

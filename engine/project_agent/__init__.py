@@ -1,5 +1,5 @@
 """
-Autonomous Project Coding Agent for Sage AI (Lunar Engine).
+Autonomous Project Coding Agent for Sage AI.
 """
 from .workspace_inspector import WorkspaceInspector
 from .agent_planner import AgentPlanner

@@ -1,5 +1,5 @@
 """
-Ollama Service Manager for Sage AI (Lunar Engine).
+Ollama Service Manager for Sage AI.
 Ensures Ollama is automatically launched on application startup,
 monitors server health, and auto-discovers installed local models.
 """
@@ -58,22 +58,73 @@ def find_ollama_binary() -> Optional[str]:
     return None
 
 
-def is_ollama_running(base_url: str = "http://127.0.0.1:11434") -> bool:
-    """Checks if Ollama REST server is currently responding."""
+from urllib.parse import urlparse
+import socket
+
+_ollama_running_cache: dict = {}
+_ollama_models_cache: dict = {}
+_cache_lock = threading.Lock()
+
+
+def is_ollama_running(base_url: str = "http://127.0.0.1:11434", force_check: bool = False) -> bool:
+    """Checks if Ollama REST server is currently responding with fast socket probing and caching."""
+    clean_url = base_url.rstrip('/')
+    now = time.time()
+
+    if not force_check:
+        with _cache_lock:
+            if clean_url in _ollama_running_cache:
+                cached_time, is_running = _ollama_running_cache[clean_url]
+                if now - cached_time < 5.0:
+                    return is_running
+
+    # 1. Fast socket probe (< 0.1s) - Prevents multi-second HTTP hangs when offline
     try:
-        r = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=1.5)
-        return r.status_code == 200
+        parsed = urlparse(clean_url)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 11434
+        sock = socket.create_connection((host, port), timeout=0.1)
+        sock.close()
     except Exception:
+        with _cache_lock:
+            _ollama_running_cache[clean_url] = (now, False)
         return False
 
-
-def get_installed_ollama_models(base_url: str = "http://127.0.0.1:11434") -> List[str]:
-    """Fetches list of model names currently installed in local Ollama."""
+    # 2. Socket connected, confirm HTTP API
     try:
-        r = requests.get(f"{base_url.rstrip('/')}/api/tags", timeout=3.0)
+        r = requests.get(f"{clean_url}/api/tags", timeout=0.8)
+        is_ok = (r.status_code == 200)
+    except Exception:
+        is_ok = False
+
+    with _cache_lock:
+        _ollama_running_cache[clean_url] = (now, is_ok)
+    return is_ok
+
+
+def get_installed_ollama_models(base_url: str = "http://127.0.0.1:11434", force_check: bool = False) -> List[str]:
+    """Fetches list of model names currently installed in local Ollama with caching."""
+    clean_url = base_url.rstrip('/')
+    now = time.time()
+
+    if not force_check:
+        with _cache_lock:
+            if clean_url in _ollama_models_cache:
+                cached_time, models = _ollama_models_cache[clean_url]
+                if now - cached_time < 10.0:
+                    return models
+
+    if not is_ollama_running(clean_url, force_check=force_check):
+        return []
+
+    try:
+        r = requests.get(f"{clean_url}/api/tags", timeout=1.5)
         if r.status_code == 200:
             models = r.json().get("models", [])
-            return [m.get("name") for m in models if m.get("name")]
+            res = [m.get("name") for m in models if m.get("name")]
+            with _cache_lock:
+                _ollama_models_cache[clean_url] = (now, res)
+            return res
     except Exception:
         pass
     return []

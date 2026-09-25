@@ -1,5 +1,5 @@
 """
-Providers package for Sage AI (Lunar Engine).
+Providers package for Sage AI.
 """
 from .base_provider import BaseProvider, ProviderResponse
 

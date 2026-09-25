@@ -1,5 +1,5 @@
 """
-Message Input Bar Component for Sage AI (Lunar Engine).
+Message Input Bar Component for Sage AI.
 Matches the reference design:
 - Floating neon emerald capsule bar
 - Sparkle icon '✦' with 'Ask anything or describe what you want to build...'
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton,
     QComboBox, QLabel, QFrame, QFileDialog, QMenu
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QTextCursor
 
 
@@ -106,6 +106,7 @@ class MessageInputBar(QWidget):
     submitted = Signal(str, bool, str, list)  # (prompt, force_web, selected_model, attachments)
     cancelled = Signal()
     manage_models_requested = Signal()
+    global_ranking_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -121,10 +122,10 @@ class MessageInputBar(QWidget):
         main_layout.setAlignment(Qt.AlignCenter)
 
         # 1. Floating Capsule Frame
-        capsule = QFrame()
-        capsule.setObjectName("floatingInputCapsule")
-        capsule.setMaximumWidth(960)
-        capsule.setStyleSheet("""
+        self.capsule = QFrame()
+        self.capsule.setObjectName("floatingInputCapsule")
+        self.capsule.setMaximumWidth(960)
+        self.capsule.setStyleSheet("""
             QFrame#floatingInputCapsule {
                 background-color: #111827;
                 border: 1.5px solid rgba(0, 209, 255, 0.35);
@@ -134,7 +135,7 @@ class MessageInputBar(QWidget):
                 border: 1.5px solid #00D1FF;
             }
         """)
-        capsule_layout = QVBoxLayout(capsule)
+        capsule_layout = QVBoxLayout(self.capsule)
         capsule_layout.setContentsMargins(16, 12, 16, 12)
         capsule_layout.setSpacing(8)
 
@@ -289,7 +290,7 @@ class MessageInputBar(QWidget):
         toolbar.addWidget(self.send_btn)
 
         capsule_layout.addLayout(toolbar)
-        main_layout.addWidget(capsule)
+        main_layout.addWidget(self.capsule)
 
         # 2. Footer Disclaimer
         footer_row = QHBoxLayout()
@@ -413,7 +414,64 @@ class MessageInputBar(QWidget):
 
         self.text_input.clear()
         self.clear_attachments()
+        self._animate_send_feedback()
         self.submitted.emit(text, force_web, selected_model, attachments)
+
+    def _animate_send_feedback(self):
+        """Micro-animation trigger when sending: glowing capsule border pulse and button tap."""
+        if hasattr(self, "send_btn"):
+            self.send_btn.setStyleSheet("""
+                QPushButton#capsuleSendBtn {
+                    background-color: #00E5FF;
+                    color: #0A0F14;
+                    border: 2px solid #FFFFFF;
+                    border-radius: 18px;
+                    font-size: 16px;
+                    font-weight: 900;
+                }
+            """)
+            QTimer.singleShot(180, lambda: self.send_btn.setStyleSheet("""
+                QPushButton#capsuleSendBtn {
+                    background-color: #00D1FF;
+                    color: #0A0F14;
+                    border: none;
+                    border-radius: 18px;
+                    font-size: 17px;
+                    font-weight: 900;
+                }
+                QPushButton#capsuleSendBtn:hover {
+                    background-color: #00BBE6;
+                }
+            """))
+
+        if hasattr(self, "capsule"):
+            self._capsule_glow_step = 0
+            self._capsule_timer = QTimer(self)
+            def _glow_step():
+                self._capsule_glow_step += 1
+                if self._capsule_glow_step > 7:
+                    self._capsule_timer.stop()
+                    self.capsule.setStyleSheet("""
+                        QFrame#floatingInputCapsule {
+                            background-color: #111827;
+                            border: 1.5px solid rgba(0, 209, 255, 0.35);
+                            border-radius: 22px;
+                        }
+                        QFrame#floatingInputCapsule:hover, QFrame#floatingInputCapsule:focus-within {
+                            border: 1.5px solid #00D1FF;
+                        }
+                    """)
+                    return
+                alpha = 0.85 - (self._capsule_glow_step * 0.08)
+                self.capsule.setStyleSheet(f"""
+                    QFrame#floatingInputCapsule {{
+                        background-color: #111827;
+                        border: 1.8px solid rgba(0, 209, 255, {alpha:.2f});
+                        border-radius: 22px;
+                    }}
+                """)
+            self._capsule_timer.timeout.connect(_glow_step)
+            self._capsule_timer.start(40)
 
     def _on_action_button_clicked(self):
         if self._is_busy:
@@ -440,6 +498,7 @@ class MessageInputBar(QWidget):
         popup = ModelSelectorPopup(current_model=self.current_model, parent=self)
         popup.model_selected.connect(self._on_model_selected)
         popup.manage_models_requested.connect(self.manage_models_requested.emit)
+        popup.global_ranking_requested.connect(self.global_ranking_requested.emit)
         popup.show_anchored(self.model_btn)
 
     def _on_model_selected(self, model_identifier: str):

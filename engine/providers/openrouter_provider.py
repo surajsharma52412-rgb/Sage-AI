@@ -1,5 +1,5 @@
 """
-OpenRouter API Provider for Sage AI (Lunar Engine).
+OpenRouter API Provider for Sage AI.
 Primarily routes coding queries to high-capability coding models.
 """
 import json

@@ -1,5 +1,5 @@
 """
-Mistral AI Provider for Sage AI (Lunar Engine).
+Mistral AI Provider for Sage AI.
 High-performance European frontier models (Mistral Large, Codestral, Mixtral).
 """
 import json

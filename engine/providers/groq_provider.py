@@ -1,5 +1,5 @@
 """
-Groq Provider for Sage AI (Lunar Engine).
+Groq Provider for Sage AI.
 Ultra-fast LLM inference engine targeting LLaMA 3.3 70B.
 """
 import json

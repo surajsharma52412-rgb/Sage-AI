@@ -1,3 +1,3 @@
 """
-Tests package for Sage AI (Lunar Engine).
+Tests package for Sage AI.
 """

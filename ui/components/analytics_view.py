@@ -1,5 +1,5 @@
 """
-Graphical Analytics View Component for Sage AI (Lunar Engine).
+Graphical Analytics View Component for Sage AI.
 Delivers state-of-the-art interactive visualizations:
 - Visual Token Consumption Bar Chart (custom QPainter with gradient columns)
 - Proportional Model Share Donut Chart with percentage breakdown & legend
@@ -22,6 +22,7 @@ from PySide6.QtGui import (
 )
 
 from database.db_manager import get_db
+from engine.model_scanner import ModelScanner
 
 
 # Curated palette for chart segments
@@ -391,7 +392,7 @@ class AnalyticsView(QWidget):
                 border: 1px solid rgba(0, 209, 255, 0.3);
                 border-radius: 7px;
                 padding: 6px 14px;
-                font-size: 11.5px;
+                font-size: 12px;
                 font-weight: 700;
             }
             QPushButton:hover {
@@ -551,7 +552,7 @@ class AnalyticsView(QWidget):
         cc1_l.addWidget(self.combined_rem_val)
 
         self.combined_rem_sub = QLabel("Across all active AI models")
-        self.combined_rem_sub.setStyleSheet("color: #71829d; font-size: 10.5px;")
+        self.combined_rem_sub.setStyleSheet("color: #71829d; font-size: 11px;")
         cc1_l.addWidget(self.combined_rem_sub)
 
         # Glowing Combined Progress Bar
@@ -603,7 +604,7 @@ class AnalyticsView(QWidget):
         cc2_l.addWidget(self.combined_used_val)
 
         self.combined_used_sub = QLabel("Total consumed from combined pool")
-        self.combined_used_sub.setStyleSheet("color: #71829d; font-size: 10.5px;")
+        self.combined_used_sub.setStyleSheet("color: #71829d; font-size: 11px;")
         cc2_l.addWidget(self.combined_used_sub)
 
         self.focused_layout.addWidget(cc2)
@@ -629,12 +630,12 @@ class AnalyticsView(QWidget):
 
         c3_row = QHBoxLayout()
         c3_title = QLabel("COMBINED CAPACITY POOL")
-        c3_title.setStyleSheet("color: #8fa0c0; font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px;")
+        c3_title.setStyleSheet("color: #8fa0c0; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
         c3_row.addWidget(c3_title)
         c3_row.addStretch()
 
         self.combined_health_sub = QLabel("● Plentiful")
-        self.combined_health_sub.setStyleSheet("color: #10b981; font-size: 10.5px; font-weight: 700;")
+        self.combined_health_sub.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 700;")
         c3_row.addWidget(self.combined_health_sub)
         cc3_l.addLayout(c3_row)
 
@@ -684,7 +685,7 @@ class AnalyticsView(QWidget):
                 border: 1px solid rgba(0, 209, 255, 0.3);
                 border-radius: 5px;
                 padding: 3px 10px;
-                font-size: 10.5px;
+                font-size: 11px;
                 font-weight: 600;
             }
             QPushButton:hover {
@@ -696,7 +697,7 @@ class AnalyticsView(QWidget):
         mc_l.addLayout(mh_row)
 
         m_sub = QLabel("Real-time model activation and ready state:")
-        m_sub.setStyleSheet("color: #64748b; font-size: 10.5px;")
+        m_sub.setStyleSheet("color: #64748b; font-size: 11px;")
         mc_l.addWidget(m_sub)
 
         # Container for the models list
@@ -767,7 +768,7 @@ class AnalyticsView(QWidget):
             self.kpi_val_labels.append(v_lbl)
 
             d_lbl = QLabel("")
-            d_lbl.setStyleSheet("color: #55607a; font-size: 10.5px;")
+            d_lbl.setStyleSheet("color: #55607a; font-size: 11px;")
             c_l.addWidget(d_lbl)
             self.kpi_desc_labels.append(d_lbl)
 
@@ -796,7 +797,7 @@ class AnalyticsView(QWidget):
         bc_layout.setSpacing(8)
 
         bc_title = QLabel("📈 Token Volume per Model")
-        bc_title.setStyleSheet("color: #f4f5fb; font-size: 13.5px; font-weight: 700; border: none; background: transparent;")
+        bc_title.setStyleSheet("color: #f4f5fb; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         bc_layout.addWidget(bc_title)
 
         self.bar_chart = TokenBarChart({})
@@ -822,7 +823,7 @@ class AnalyticsView(QWidget):
         dc_layout.setSpacing(8)
 
         dc_title = QLabel("🍩 Model Consumption Share")
-        dc_title.setStyleSheet("color: #f4f5fb; font-size: 13.5px; font-weight: 700; border: none; background: transparent;")
+        dc_title.setStyleSheet("color: #f4f5fb; font-size: 14px; font-weight: 700; border: none; background: transparent;")
         dc_layout.addWidget(dc_title)
 
         self.donut_chart = ModelDonutChart({})
@@ -850,7 +851,7 @@ class AnalyticsView(QWidget):
         rc_layout.setSpacing(8)
 
         rc_title = QLabel("⚖️ Prompt Input vs. Generated Output Ratio")
-        rc_title.setStyleSheet("color: #d1d8e6; font-size: 12.5px; font-weight: 700;")
+        rc_title.setStyleSheet("color: #d1d8e6; font-size: 13px; font-weight: 700;")
         rc_layout.addWidget(rc_title)
 
         self.ratio_meter = PromptCompletionMeter(0, 0)
@@ -895,19 +896,19 @@ class AnalyticsView(QWidget):
             pb_layout.setSpacing(3)
 
             p_lbl = QLabel(p["name"])
-            p_lbl.setStyleSheet("color: #f4f5fb; font-size: 12.5px; font-weight: 700;")
+            p_lbl.setStyleSheet("color: #f4f5fb; font-size: 13px; font-weight: 700;")
             pb_layout.addWidget(p_lbl)
 
             d_lbl = QLabel(p["desc"])
-            d_lbl.setStyleSheet("color: #71829d; font-size: 10.5px;")
+            d_lbl.setStyleSheet("color: #71829d; font-size: 11px;")
             pb_layout.addWidget(d_lbl)
 
             st_lbl = QLabel(p["status_text"])
-            st_lbl.setStyleSheet(f"color: {p['status_color']}; font-size: 10.5px; font-weight: bold;")
+            st_lbl.setStyleSheet(f"color: {p['status_color']}; font-size: 11px; font-weight: bold;")
             pb_layout.addWidget(st_lbl)
 
             detail_lbl = QLabel(p["detail"])
-            detail_lbl.setStyleSheet("color: #8fa0c0; font-size: 9.5px;")
+            detail_lbl.setStyleSheet("color: #8fa0c0; font-size: 10px;")
             pb_layout.addWidget(detail_lbl)
 
             self.provider_widgets[p["id"]] = {
@@ -1076,6 +1077,19 @@ class AnalyticsView(QWidget):
             "detail": "Service Running (11434)" if ollama_active else "Server Not Running",
         })
 
+        from engine.model_scanner import ModelScanner
+        for s in statuses:
+            pid = s["id"]
+            r_info = ModelScanner.get_provider_reset_info(pid)
+            s["tier_type"] = r_info["tier_type"]
+            s["reset_time"] = r_info["reset_time"]
+            s["reset_schedule"] = r_info["reset_schedule"]
+            if s["active"]:
+                if pid == "ollama":
+                    s["desc"] = "🔒 100% Free Offline (Unlimited Local)"
+                else:
+                    s["desc"] = f"🟢 Free Tier • Resets {r_info['reset_time']}"
+
         return statuses
 
     @staticmethod
@@ -1089,6 +1103,7 @@ class AnalyticsView(QWidget):
 
     def _get_provider_quotas_summary(self) -> List[Dict[str, Any]]:
         """Calculates live remaining allowances, daily limits, and credit balances across providers."""
+        from engine.model_scanner import ModelScanner
         quotas = self.db.get_all_provider_quotas()
         summary = self.db.get_model_usage_summary()
         prov_usage = {p["provider_id"]: p["total_tokens"] for p in summary.get("by_provider", [])}
@@ -1113,6 +1128,11 @@ class AnalyticsView(QWidget):
             key_val = (self.db.get_setting(key_name) or os.getenv(env_name)) if key_name else "local"
             is_active = bool(key_val and str(key_val).strip())
 
+            reset_info = ModelScanner.get_provider_reset_info(pid)
+            tier_type = q.get("tier_type") or ("100% Free Offline" if pid == "ollama" else ("Free Tier" if is_free else "Paid / Credits"))
+            reset_time = q.get("reset_time") or reset_info.get("reset_time", "")
+            reset_schedule = reset_info.get("reset_schedule", "")
+
             total_limit = float(q.get("total_limit") or def_limit)
             unit_str = q.get("currency_or_unit") or unit
 
@@ -1126,10 +1146,13 @@ class AnalyticsView(QWidget):
                     "remaining": 0,
                     "percent_left": 100.0,
                     "unit": "Unlimited (Local)",
+                    "tier_type": "100% Free Offline",
+                    "reset_time": "Never (Unlimited Local)",
+                    "reset_schedule": "Never (Unlimited Local)",
                     "status_text": "Unlimited",
                     "status_color": "#00D1FF",
                     "badge_text": "● Unlimited Local",
-                    "detail": "Runs 100% offline on your machine with zero token limits"
+                    "detail": "Runs 100% offline on your machine • Zero token limits"
                 })
                 continue
 
@@ -1166,10 +1189,13 @@ class AnalyticsView(QWidget):
                 "remaining": rem,
                 "percent_left": round(pct, 1),
                 "unit": unit_str,
+                "tier_type": tier_type,
+                "reset_time": reset_time,
+                "reset_schedule": reset_schedule,
                 "status_text": status_text,
                 "status_color": status_color,
                 "badge_text": f"● {round(pct, 1)}% Left",
-                "detail": f"Used: {int(used):,} of {int(total_limit):,} {unit_str}" if total_limit > 0 else f"Used: {used:.4f} {unit_str}"
+                "detail": f"{tier_type} • Resets {reset_time} • Used: {int(used):,} of {int(total_limit):,} {unit_str}" if total_limit > 0 else f"{tier_type} • Resets {reset_time} • Used: {used:.4f} {unit_str}"
             })
 
         return results
@@ -1210,7 +1236,7 @@ class AnalyticsView(QWidget):
             w = self.provider_widgets.get(p["id"])
             if w:
                 w["status_lbl"].setText(p["status_text"])
-                w["status_lbl"].setStyleSheet(f"color: {p['status_color']}; font-size: 10.5px; font-weight: bold;")
+                w["status_lbl"].setStyleSheet(f"color: {p['status_color']}; font-size: 11px; font-weight: bold;")
                 w["detail_lbl"].setText(p["detail"])
                 w["box"].setStyleSheet(self._get_card_style(p["active"]))
 
@@ -1306,7 +1332,7 @@ class AnalyticsView(QWidget):
                     border: 1px solid rgba(16, 185, 129, 0.35);
                     border-radius: 5px;
                     padding: 3px 8px;
-                    font-size: 10.5px;
+                    font-size: 11px;
                     font-weight: 800;
                 """)
                 rf_l.addWidget(act_pill)
@@ -1318,7 +1344,7 @@ class AnalyticsView(QWidget):
                     border: 1px solid rgba(100, 116, 139, 0.2);
                     border-radius: 5px;
                     padding: 3px 8px;
-                    font-size: 10.5px;
+                    font-size: 11px;
                     font-weight: 600;
                 """)
                 rf_l.addWidget(inact_pill)
@@ -1381,15 +1407,16 @@ class AnalyticsView(QWidget):
             combined_rem += rem_amt
 
         # Update Combined Tokens Left
+        reset_countdown = ModelScanner.get_provider_reset_info("gemini").get("reset_time", "00:00 UTC")
         if has_unlimited_local and combined_rem > 0:
             self.combined_rem_val.setText(f"{int(combined_rem):,} + ∞")
-            self.combined_rem_sub.setText("Cloud tokens + Unlimited local Ollama")
+            self.combined_rem_sub.setText(f"Cloud Free Tier (Resets {reset_countdown}) + Unlimited local Ollama")
         elif has_unlimited_local:
             self.combined_rem_val.setText("Unlimited (Local)")
-            self.combined_rem_sub.setText("Zero cloud quota consumption")
+            self.combined_rem_sub.setText("Zero cloud quota consumption • Unlimited Local")
         else:
             self.combined_rem_val.setText(f"{int(combined_rem):,}")
-            self.combined_rem_sub.setText("Combined tokens across active providers")
+            self.combined_rem_sub.setText(f"Combined pool • Free Tier limits reset {reset_countdown}")
 
         # Update Combined Tokens Used
         self.combined_used_val.setText(f"{int(combined_used or total_tokens):,}")
@@ -1409,13 +1436,13 @@ class AnalyticsView(QWidget):
 
         if pct_left > 40 or has_unlimited_local:
             self.combined_health_sub.setText("● Plentiful")
-            self.combined_health_sub.setStyleSheet("color: #10b981; font-size: 10.5px; font-weight: 700;")
+            self.combined_health_sub.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 700;")
         elif pct_left > 15:
             self.combined_health_sub.setText("● Moderate")
-            self.combined_health_sub.setStyleSheet("color: #ffb84d; font-size: 10.5px; font-weight: 700;")
+            self.combined_health_sub.setStyleSheet("color: #ffb84d; font-size: 11px; font-weight: 700;")
         else:
             self.combined_health_sub.setText("● Low")
-            self.combined_health_sub.setStyleSheet("color: #ef4444; font-size: 10.5px; font-weight: 700;")
+            self.combined_health_sub.setStyleSheet("color: #ef4444; font-size: 11px; font-weight: 700;")
 
         # Update dummy attributes for test safety
         self.focused_total_tokens_val.setText(f"{total_tokens:,}")

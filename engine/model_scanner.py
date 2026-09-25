@@ -1,5 +1,5 @@
 """
-Model Scanner and Quota Discovery Service for Sage AI (Lunar Engine).
+Model Scanner and Quota Discovery Service for Sage AI.
 Discovers live available models for configured API keys (OpenRouter, Groq, NVIDIA, Gemini, Ollama)
 and tracks remaining quota/credit allowances.
 """
@@ -7,6 +7,7 @@ import time
 import logging
 import threading
 import requests
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from database.db_manager import get_db
 from config import DEFAULT_MODELS, PROVIDER_PRESET_MODELS
@@ -18,11 +19,277 @@ class ModelScanner:
     """Discovers authorized models and quota limits across cloud and local providers."""
 
     _scan_cache: Dict[str, Tuple[float, Any]] = {}
+    _last_trace_diffs: Dict[str, Dict[str, Any]] = {}
     _cache_lock = threading.Lock()
     CACHE_TTL: float = 300.0  # 5-minute memory cache to prevent blocking network scans
 
-    @staticmethod
-    def scan_openrouter(api_key: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    @classmethod
+    def trace_provider_models(
+        cls,
+        provider_id: str,
+        current_models: List[Dict[str, Any]],
+        sync_to_db: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Diffs live provider models against previously recorded models in SQLite.
+        Detects:
+          - Newly added free models ('added_free')
+          - Newly added paid models ('added_paid')
+          - Removed or decommissioned models ('removed')
+          - Parameter, context, or free/paid status changes ('changed')
+        Persists all audit events into model_audit_log and updates discovered_models.
+        """
+        db = get_db()
+        now = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+        existing_list = db.get_discovered_models(provider_id=provider_id, free_only=False)
+        existing_map = {m["model_name"]: m for m in existing_list if m.get("model_name")}
+        current_map = {m["model_name"]: m for m in current_models if m.get("model_name")}
+
+        events: List[Dict[str, Any]] = []
+        added_free: List[Dict[str, Any]] = []
+        added_paid: List[Dict[str, Any]] = []
+        removed: List[Dict[str, Any]] = []
+        changed: List[Dict[str, Any]] = []
+
+        is_initial_baseline = len(existing_map) == 0
+
+        # 1. Detect Additions
+        for m_name, m_data in current_map.items():
+            if m_name not in existing_map:
+                is_free = bool(m_data.get("is_free", 0))
+                ev_type = "added_free" if is_free else "added_paid"
+                disp = m_data.get("display_name") or m_name
+                ctx = m_data.get("context_length", 0)
+                summary = (
+                    f"New FREE model discovered on {provider_id.title()}: {disp}"
+                    if is_free else
+                    f"New model available on {provider_id.title()}: {disp}"
+                )
+                ev = {
+                    "timestamp": now,
+                    "provider_id": provider_id,
+                    "event_type": ev_type,
+                    "model_name": m_name,
+                    "display_name": disp,
+                    "is_free": 1 if is_free else 0,
+                    "change_summary": summary,
+                    "details": {"context_length": ctx, "is_baseline": is_initial_baseline}
+                }
+                events.append(ev)
+                if is_free:
+                    added_free.append(ev)
+                else:
+                    added_paid.append(ev)
+
+        # 2. Detect Removals (only if we had existing models recorded)
+        if not is_initial_baseline:
+            for m_name, m_data in existing_map.items():
+                if m_name not in current_map:
+                    disp = m_data.get("display_name") or m_name
+                    was_free = bool(m_data.get("is_free", 0))
+                    summary = f"Model removed / discontinued on {provider_id.title()}: {disp}"
+                    ev = {
+                        "timestamp": now,
+                        "provider_id": provider_id,
+                        "event_type": "removed",
+                        "model_name": m_name,
+                        "display_name": disp,
+                        "is_free": 1 if was_free else 0,
+                        "change_summary": summary,
+                        "details": {"previous_context": m_data.get("context_length", 0)}
+                    }
+                    events.append(ev)
+                    removed.append(ev)
+
+        # 3. Detect Changes
+        if not is_initial_baseline:
+            for m_name, m_data in current_map.items():
+                if m_name in existing_map:
+                    old_data = existing_map[m_name]
+                    old_free = bool(old_data.get("is_free", 0))
+                    new_free = bool(m_data.get("is_free", 0))
+                    old_ctx = old_data.get("context_length", 0) or 0
+                    new_ctx = m_data.get("context_length", 0) or 0
+
+                    diffs = []
+                    if old_free != new_free:
+                        diffs.append(f"pricing shifted from {'FREE' if old_free else 'PAID'} to {'FREE' if new_free else 'PAID'}")
+                    if old_ctx and new_ctx and abs(old_ctx - new_ctx) > 100:
+                        diffs.append(f"context length changed from {old_ctx:,} to {new_ctx:,} tokens")
+
+                    if diffs:
+                        disp = m_data.get("display_name") or m_name
+                        summary = f"Model changed on {provider_id.title()}: {disp} ({'; '.join(diffs)})"
+                        ev = {
+                            "timestamp": now,
+                            "provider_id": provider_id,
+                            "event_type": "changed",
+                            "model_name": m_name,
+                            "display_name": disp,
+                            "is_free": 1 if new_free else 0,
+                            "change_summary": summary,
+                            "details": {"changes": diffs, "old_free": old_free, "new_free": new_free, "old_ctx": old_ctx, "new_ctx": new_ctx}
+                        }
+                        events.append(ev)
+                        changed.append(ev)
+
+        # 4. Save events to audit log
+        if events:
+            db.log_model_trace_events(events)
+
+        # 5. Clean up removed models from discovered_models
+        if removed:
+            db.remove_discovered_models(provider_id, [r["model_name"] for r in removed])
+
+        # 6. Save/update discovered models in DB with explicit tier and reset metadata
+        if sync_to_db and current_models:
+            reset_info = cls.get_provider_reset_info(provider_id)
+            for m in current_models:
+                is_free_val = bool(m.get("is_free"))
+                if not m.get("tier_type"):
+                    if provider_id == "ollama":
+                        m["tier_type"] = "100% Free Offline"
+                        m["reset_time"] = "Never (Unlimited Local)"
+                    elif is_free_val:
+                        m["tier_type"] = "Free Tier"
+                        m["reset_time"] = reset_info.get("reset_time", "")
+                    else:
+                        m["tier_type"] = "Paid / Credits"
+                        m["reset_time"] = ""
+            db.save_discovered_models(provider_id, current_models)
+
+        diff_summary = {
+            "provider_id": provider_id,
+            "timestamp": now,
+            "events_count": len(events),
+            "added_free": added_free,
+            "added_paid": added_paid,
+            "removed": removed,
+            "changed": changed,
+            "total_active": len(current_models)
+        }
+        cls._last_trace_diffs[provider_id] = diff_summary
+        return diff_summary
+
+    @classmethod
+    def get_provider_reset_info(cls, provider_id: str) -> Dict[str, Any]:
+        """
+        Computes dynamic limit reset information and human-readable countdowns
+        for Free Tier and allowance-based providers.
+        """
+        now_utc = datetime.now(timezone.utc)
+        # Midnight UTC of next day (daily resets)
+        tomorrow_utc = (now_utc + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        delta_daily = tomorrow_utc - now_utc
+        total_seconds = int(delta_daily.total_seconds())
+        hours = max(0, total_seconds // 3600)
+        minutes = max(0, (total_seconds % 3600) // 60)
+
+        daily_countdown = f"in {hours}h {minutes}m (00:00 UTC)"
+        daily_schedule = "Daily at 00:00 UTC"
+
+        # 1st of next month (monthly resets)
+        if now_utc.month == 12:
+            next_month = now_utc.replace(year=now_utc.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            next_month = now_utc.replace(month=now_utc.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        days_to_month = max(0, (next_month - now_utc).days)
+        monthly_countdown = f"in {days_to_month}d (1st of month, 00:00 UTC)"
+        monthly_schedule = "1st of each month (00:00 UTC)"
+
+        pid = (provider_id or "").lower()
+        if pid == "ollama":
+            return {
+                "tier_type": "100% Free Offline",
+                "reset_schedule": "Never (Unlimited Local)",
+                "reset_time": "Never (Unlimited Local)",
+                "is_free_tier": True,
+                "badge": "100% Free Offline"
+            }
+        elif pid in ("gemini", "google"):
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": daily_schedule,
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid == "groq":
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": daily_schedule,
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid == "cerebras":
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": daily_schedule,
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid in ("cloudflare", "cloudflare_ai"):
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": daily_schedule,
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid == "mistral":
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": "Every 60s (1 RPS) / Daily 00:00 UTC",
+                "reset_time": f"Every 60s • Daily {daily_countdown}",
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid == "cohere":
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": monthly_schedule,
+                "reset_time": monthly_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid in ("huggingface", "hf"):
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": "Hourly / Daily 00:00 UTC",
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid == "nvidia":
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": "Developer Allowance (1,000 Credits)",
+                "reset_time": "Allowance: 1,000 Credits",
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        elif pid == "openrouter":
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": daily_schedule,
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+        else:
+            return {
+                "tier_type": "Free Tier",
+                "reset_schedule": daily_schedule,
+                "reset_time": daily_countdown,
+                "is_free_tier": True,
+                "badge": "Free Tier"
+            }
+
+    @classmethod
+    def scan_openrouter(cls, api_key: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """Scans OpenRouter models and checks remaining key quota."""
         db = get_db()
         key = api_key or db.get_setting("openrouter_api_key")
@@ -46,12 +313,16 @@ class ModelScanner:
                 elif limit_rem is None:
                     limit_rem = 0.0
 
+                is_free_tier = bool(data.get("is_free_tier", False))
+                reset_info = cls.get_provider_reset_info("openrouter")
                 quota_data = {
                     "total_limit": limit,
                     "used_amount": usage,
                     "remaining_amount": limit_rem,
-                    "currency_or_unit": "USD",
-                    "is_free_tier": data.get("is_free_tier", False),
+                    "currency_or_unit": "USD" if not is_free_tier else "Free Requests",
+                    "is_free_tier": is_free_tier,
+                    "tier_type": "Free Tier" if is_free_tier else "Paid / Credits",
+                    "reset_time": reset_info["reset_time"] if is_free_tier else "",
                     "details": data
                 }
                 db.save_provider_quota("openrouter", quota_data)
@@ -71,8 +342,6 @@ class ModelScanner:
                     ctx = item.get("context_length", 0)
                     pricing = item.get("pricing", {})
                     is_free = 1 if ":free" in m_id or (pricing.get("prompt") == "0" and pricing.get("completion") == "0") else 0
-                    if not is_free:
-                        continue
                     desc = item.get("description") or f"Context: {ctx:,} tokens"
 
                     models.append({
@@ -80,17 +349,17 @@ class ModelScanner:
                         "display_name": name,
                         "description": desc,
                         "context_length": ctx,
-                        "is_free": 1
+                        "is_free": is_free
                     })
                 if models:
-                    db.save_discovered_models("openrouter", models)
+                    cls.trace_provider_models("openrouter", models)
         except Exception as e:
             logger.warning("Failed to fetch OpenRouter models: %s", e)
 
         return models, quota_data
 
-    @staticmethod
-    def scan_groq(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_groq(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans active models on Groq."""
         db = get_db()
         key = api_key or db.get_setting("groq_api_key")
@@ -119,24 +388,27 @@ class ModelScanner:
                         "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("groq", models)
+                    cls.trace_provider_models("groq", models)
 
                 # Groq has a free tier with high rate limits
+                reset_info = cls.get_provider_reset_info("groq")
                 db.save_provider_quota("groq", {
                     "total_limit": 14400,
                     "used_amount": 0,
                     "remaining_amount": 14400,
                     "currency_or_unit": "Requests/Day",
                     "is_free_tier": True,
-                    "details": {"tier": "Free Community Tier"}
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Free Community Tier", "reset": reset_info["reset_schedule"]}
                 })
         except Exception as e:
             logger.warning("Failed to scan Groq models: %s", e)
 
         return models
 
-    @staticmethod
-    def scan_nvidia(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_nvidia(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans available models on NVIDIA NIM."""
         db = get_db()
         key = api_key or db.get_setting("nvidia_api_key")
@@ -162,7 +434,7 @@ class ModelScanner:
                         "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("nvidia", models)
+                    cls.trace_provider_models("nvidia", models)
 
                 # Calculate estimated remaining free credits based on SQLite usage
                 usage_summary = db.get_model_usage_summary()
@@ -171,21 +443,24 @@ class ModelScanner:
                     if m.get("provider_id") == "nvidia"
                 )
                 remaining_credits = max(0, 1000 - nvidia_requests)
+                reset_info = cls.get_provider_reset_info("nvidia")
                 db.save_provider_quota("nvidia", {
                     "total_limit": 1000.0,
                     "used_amount": float(nvidia_requests),
                     "remaining_amount": float(remaining_credits),
                     "currency_or_unit": "Credits",
                     "is_free_tier": True,
-                    "details": {"standard_free_allowance": 1000}
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"standard_free_allowance": 1000, "tier": "Free Developer Allowance"}
                 })
         except Exception as e:
             logger.warning("Failed to scan NVIDIA models: %s", e)
 
         return models
 
-    @staticmethod
-    def scan_gemini(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_gemini(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans available models for Google Gemini API key."""
         db = get_db()
         key = api_key or db.get_setting("gemini_api_key")
@@ -214,23 +489,26 @@ class ModelScanner:
                         "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("gemini", models)
+                    cls.trace_provider_models("gemini", models)
 
+                reset_info = cls.get_provider_reset_info("gemini")
                 db.save_provider_quota("gemini", {
                     "total_limit": 1500.0,
                     "used_amount": 0.0,
                     "remaining_amount": 1500.0,
                     "currency_or_unit": "Requests/Day",
                     "is_free_tier": True,
-                    "details": {"tier": "Gemini Developer Free Tier (15 RPM / 1500 RPD)"}
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Gemini Developer Free Tier (15 RPM / 1500 RPD)", "reset": reset_info["reset_schedule"]}
                 })
         except Exception as e:
             logger.warning("Failed to scan Gemini models: %s", e)
 
         return models
 
-    @staticmethod
-    def scan_ollama(base_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_ollama(cls, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans locally installed models in Ollama."""
         db = get_db()
         url = base_url or db.get_setting("ollama_base_url") or DEFAULT_MODELS.get("ollama_base_url", "http://127.0.0.1:11434")
@@ -255,14 +533,17 @@ class ModelScanner:
                         "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("ollama", models)
+                    cls.trace_provider_models("ollama", models)
 
+                reset_info = cls.get_provider_reset_info("ollama")
                 db.save_provider_quota("ollama", {
                     "total_limit": 0.0,
                     "used_amount": 0.0,
                     "remaining_amount": 999999.0,
                     "currency_or_unit": "Tokens (Unlimited Local)",
                     "is_free_tier": True,
+                    "tier_type": "100% Free Offline",
+                    "reset_time": reset_info["reset_time"],
                     "details": {"type": "Local Private Engine"}
                 })
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
@@ -272,8 +553,8 @@ class ModelScanner:
 
         return models
 
-    @staticmethod
-    def scan_mistral(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_mistral(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans active models on Mistral AI."""
         db = get_db()
         key = api_key or db.get_setting("mistral_api_key")
@@ -298,13 +579,24 @@ class ModelScanner:
                         "is_free": 0
                     })
                 if models:
-                    db.save_discovered_models("mistral", models)
+                    cls.trace_provider_models("mistral", models)
+                reset_info = cls.get_provider_reset_info("mistral")
+                db.save_provider_quota("mistral", {
+                    "total_limit": 500000.0,
+                    "used_amount": 0.0,
+                    "remaining_amount": 500000.0,
+                    "currency_or_unit": "Tokens",
+                    "is_free_tier": True,
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Mistral Free Experimentation Tier (1 RPS)", "reset": reset_info["reset_schedule"]}
+                })
         except Exception as e:
             logger.warning("Failed to scan Mistral models: %s", e)
         return models
 
-    @staticmethod
-    def scan_cerebras(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_cerebras(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans active models on Cerebras."""
         db = get_db()
         key = api_key or db.get_setting("cerebras_api_key")
@@ -326,16 +618,27 @@ class ModelScanner:
                         "display_name": m_id,
                         "description": "Wafer-Scale Fast Inference",
                         "context_length": 8192,
-                        "is_free": 0
+                        "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("cerebras", models)
+                    cls.trace_provider_models("cerebras", models)
+                reset_info = cls.get_provider_reset_info("cerebras")
+                db.save_provider_quota("cerebras", {
+                    "total_limit": 14400.0,
+                    "used_amount": 0.0,
+                    "remaining_amount": 14400.0,
+                    "currency_or_unit": "Requests/Day",
+                    "is_free_tier": True,
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Cerebras Free Developer Tier (30 RPM / 14.4k RPD)", "reset": reset_info["reset_schedule"]}
+                })
         except Exception as e:
             logger.warning("Failed to scan Cerebras models: %s", e)
         return models
 
-    @staticmethod
-    def scan_cohere(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_cohere(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scans active models on Cohere."""
         db = get_db()
         key = api_key or db.get_setting("cohere_api_key")
@@ -358,16 +661,27 @@ class ModelScanner:
                         "display_name": m_id,
                         "description": f"Command Enterprise • Context: {ctx:,}",
                         "context_length": ctx,
-                        "is_free": 0
+                        "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("cohere", models)
+                    cls.trace_provider_models("cohere", models)
+                reset_info = cls.get_provider_reset_info("cohere")
+                db.save_provider_quota("cohere", {
+                    "total_limit": 1000.0,
+                    "used_amount": 0.0,
+                    "remaining_amount": 1000.0,
+                    "currency_or_unit": "Monthly Calls",
+                    "is_free_tier": True,
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Cohere Free Trial Key (1,000 calls/month)", "reset": reset_info["reset_schedule"]}
+                })
         except Exception as e:
             logger.warning("Failed to scan Cohere models: %s", e)
         return models
 
-    @staticmethod
-    def scan_huggingface(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_huggingface(cls, api_key: Optional[str] = None) -> List[Dict[str, Any]]:
         """Validates Hugging Face API key and returns supported serverless models."""
         db = get_db()
         key = api_key or db.get_setting("huggingface_api_key")
@@ -388,13 +702,24 @@ class ModelScanner:
                         "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("huggingface", models)
+                    cls.trace_provider_models("huggingface", models)
+                reset_info = cls.get_provider_reset_info("huggingface")
+                db.save_provider_quota("huggingface", {
+                    "total_limit": 1000.0,
+                    "used_amount": 0.0,
+                    "remaining_amount": 1000.0,
+                    "currency_or_unit": "Serverless Req",
+                    "is_free_tier": True,
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Hugging Face Free Serverless API", "reset": reset_info["reset_schedule"]}
+                })
         except Exception as e:
             logger.warning("Failed to scan Hugging Face: %s", e)
         return models
 
-    @staticmethod
-    def scan_cloudflare(api_key: Optional[str] = None, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    @classmethod
+    def scan_cloudflare(cls, api_key: Optional[str] = None, account_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Validates Cloudflare API token and returns Workers AI models."""
         db = get_db()
         key = api_key or db.get_setting("cloudflare_api_key")
@@ -415,7 +740,18 @@ class ModelScanner:
                         "is_free": 1
                     })
                 if models:
-                    db.save_discovered_models("cloudflare", models)
+                    cls.trace_provider_models("cloudflare", models)
+                reset_info = cls.get_provider_reset_info("cloudflare")
+                db.save_provider_quota("cloudflare", {
+                    "total_limit": 10000.0,
+                    "used_amount": 0.0,
+                    "remaining_amount": 10000.0,
+                    "currency_or_unit": "Daily Neurons",
+                    "is_free_tier": True,
+                    "tier_type": "Free Tier",
+                    "reset_time": reset_info["reset_time"],
+                    "details": {"tier": "Cloudflare Workers AI Free Tier (10k Neurons/Day)", "reset": reset_info["reset_schedule"]}
+                })
         except Exception as e:
             logger.warning("Failed to scan Cloudflare: %s", e)
         return models
@@ -446,6 +782,57 @@ class ModelScanner:
             cls._scan_cache["scan_all"] = (time.time(), results)
 
         return results
+
+    @classmethod
+    def trace_and_sync_all_configured_providers(cls) -> Dict[str, Any]:
+        """
+        Runs live model trace across all configured API keys on startup.
+        Tracks additions (especially free models), removals, and parameter changes.
+        """
+        now = time.strftime("%Y-%m-%dT%H:%M:%S")
+        aggregate: Dict[str, Any] = {
+            "timestamp": now,
+            "added_free": [],
+            "added_paid": [],
+            "removed": [],
+            "changed": [],
+            "scanned_providers": [],
+            "total_models": 0
+        }
+
+        # Invalidate scan cache for fresh startup verification
+        with cls._cache_lock:
+            cls._scan_cache.clear()
+
+        scanners = [
+            ("openrouter", lambda: cls.scan_openrouter()[0]),
+            ("groq", cls.scan_groq),
+            ("nvidia", cls.scan_nvidia),
+            ("gemini", cls.scan_gemini),
+            ("mistral", cls.scan_mistral),
+            ("cerebras", cls.scan_cerebras),
+            ("cohere", cls.scan_cohere),
+            ("huggingface", cls.scan_huggingface),
+            ("cloudflare", cls.scan_cloudflare),
+            ("ollama", cls.scan_ollama),
+        ]
+
+        for prov_id, scan_fn in scanners:
+            if not cls.is_provider_available(prov_id):
+                continue
+            try:
+                models = scan_fn()
+                aggregate["scanned_providers"].append(prov_id)
+                aggregate["total_models"] += len(models) if models else 0
+                diff = cls._last_trace_diffs.get(prov_id, {})
+                aggregate["added_free"].extend(diff.get("added_free", []))
+                aggregate["added_paid"].extend(diff.get("added_paid", []))
+                aggregate["removed"].extend(diff.get("removed", []))
+                aggregate["changed"].extend(diff.get("changed", []))
+            except Exception as e:
+                logger.warning("Failed tracing provider %s on startup: %s", prov_id, e)
+
+        return aggregate
 
     @classmethod
     def get_available_models(cls) -> List[Dict[str, Any]]:
@@ -489,6 +876,18 @@ class ModelScanner:
                 "name": "Local Ollama Llama 3",
                 "provider": "ollama"
             })
+
+        if not available:
+            # Fallback to system presets when no provider keys are configured
+            for prov, models in PROVIDER_PRESET_MODELS.items():
+                for m_name in models:
+                    if isinstance(m_name, str):
+                        full_id = f"{prov}/{m_name}" if "/" not in m_name else m_name
+                        available.append({
+                            "id": full_id,
+                            "name": m_name,
+                            "provider": prov
+                        })
 
         return available
 
@@ -609,6 +1008,10 @@ class ModelScanner:
                 return True, "Available (Local Ollama Running)"
             return False, "Unavailable (Start Ollama Engine)"
 
+        if "union" in m_lower or "pareto" in m_lower:
+            avail = cls.is_provider_available("openrouter")
+            return (avail, "Available (OpenRouter Connected)" if avail else "Unavailable (Needs OpenRouter Key)")
+
         if "deepseek" in m_lower and "groq" in m_lower:
             avail = cls.is_provider_available("groq")
             return (avail, "Available (Groq Key Connected)" if avail else "Unavailable (Needs Groq Key)")
@@ -657,6 +1060,7 @@ class ModelScanner:
         if category in ("coding", "project"):
             definitions = [
                 ("Auto Router", "⚡ Auto Router (Best Free Coding Waterfall)"),
+                ("Pareto 26.9 (Union Alpha)", "🔥 Pareto 26.9 (Union Alpha • 262k Context Frontier SOTA)"),
                 ("DeepSeek R1", "👑 DeepSeek R1 Reasoning (Free • Rivals Claude 3.7 & o1)"),
                 ("Qwen 2.5 Coder 32B", "💻 Qwen 2.5 Coder 32B (Free • #1 Open Coder, Near Claude)"),
                 ("Groq DeepSeek R1 Distill 70B", "⚡ Groq DeepSeek R1 Distill 70B (Free • 500 tok/s Ultra-Fast)"),

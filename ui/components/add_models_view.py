@@ -1,5 +1,5 @@
 """
-Add & Connect AI Models View Component for Sage AI (Lunar Engine).
+Add & Connect AI Models View Component for Sage AI.
 In-window provider setup page (replaces popup dialog) providing:
 - 100% Free Tier Quick-Start Guide
 - Cloud Model Cards (Groq, Gemini, NVIDIA, OpenRouter) with 1-click test & connect
@@ -68,7 +68,7 @@ class AddModelsView(QWidget):
         title_box.addWidget(title_lbl)
 
         sub_lbl = QLabel("Connect 100% free cloud models or private local Ollama in 30 seconds")
-        sub_lbl.setStyleSheet("color: #717d98; font-size: 11.5px;")
+        sub_lbl.setStyleSheet("color: #717d98; font-size: 12px;")
         title_box.addWidget(sub_lbl)
         header.addLayout(title_box)
 
@@ -104,7 +104,7 @@ class AddModelsView(QWidget):
             "• <b>Groq</b>: Free tier with ultra-low latency LLaMA 3.3 70B.<br>"
             "• <b>Local Ollama</b>: 100% free & private on your computer without internet."
         )
-        b_text.setStyleSheet("color: #d1d9ea; font-size: 11.5px; line-height: 1.4; border: none; background: transparent;")
+        b_text.setStyleSheet("color: #d1d9ea; font-size: 12px; line-height: 1.4; border: none; background: transparent;")
         fb_layout.addWidget(b_text, 1)
 
         main_layout.addWidget(free_banner)
@@ -127,7 +127,7 @@ class AddModelsView(QWidget):
                 border-top-right-radius: 8px;
                 padding: 10px 22px;
                 margin-right: 4px;
-                font-size: 12.5px;
+                font-size: 13px;
                 font-weight: 600;
             }
             QTabBar::tab:selected {
@@ -255,7 +255,7 @@ class AddModelsView(QWidget):
         # Top row: title, badges, get key link
         top_row = QHBoxLayout()
         lbl_title = QLabel(f"<b>{p_name}</b> <span style='color: #00D1FF; font-size: 11px;'>{badges}</span>")
-        lbl_title.setStyleSheet("color: #F8FAFC; font-size: 13.5px; border: none; background: transparent;")
+        lbl_title.setStyleSheet("color: #F8FAFC; font-size: 14px; border: none; background: transparent;")
         top_row.addWidget(lbl_title)
         top_row.addStretch()
 
@@ -266,7 +266,7 @@ class AddModelsView(QWidget):
                 background: transparent;
                 color: #4f80ff;
                 border: none;
-                font-size: 11.5px;
+                font-size: 12px;
                 font-weight: 700;
                 text-decoration: underline;
             }
@@ -315,7 +315,7 @@ class AddModelsView(QWidget):
                 border: none;
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 11.5px;
+                font-size: 12px;
                 font-weight: 800;
             }
             QPushButton:hover {
@@ -392,7 +392,7 @@ class AddModelsView(QWidget):
         cc_l.setSpacing(12)
 
         ctrl_title = QLabel("<b>Ollama Local Service Control</b>")
-        ctrl_title.setStyleSheet("color: #F8FAFC; font-size: 13.5px; border: none; background: transparent;")
+        ctrl_title.setStyleSheet("color: #F8FAFC; font-size: 14px; border: none; background: transparent;")
         cc_l.addWidget(ctrl_title)
 
         url_row = QHBoxLayout()
@@ -458,7 +458,7 @@ class AddModelsView(QWidget):
         cc_l.addLayout(url_row)
 
         self.ollama_status_lbl = QLabel("○ Status: Click 'Start Ollama' to launch or 'Test' to check connection")
-        self.ollama_status_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px; border: none; background: transparent;")
+        self.ollama_status_lbl.setStyleSheet("color: #94A3B8; font-size: 12px; border: none; background: transparent;")
         cc_l.addWidget(self.ollama_status_lbl)
 
         layout.addWidget(ctrl_card)
@@ -468,7 +468,7 @@ class AddModelsView(QWidget):
     def _start_ollama_action(self):
         url = self.ollama_url_input.text().strip() or "http://127.0.0.1:11434"
         self.ollama_status_lbl.setText("⏳ Starting Ollama background process...")
-        self.ollama_status_lbl.setStyleSheet("color: #ffb84d; font-size: 11.5px; font-weight: bold;")
+        self.ollama_status_lbl.setStyleSheet("color: #ffb84d; font-size: 12px; font-weight: bold;")
         self.ollama_status_lbl.repaint()
         
         success, msg = start_ollama_service(url)
@@ -476,11 +476,11 @@ class AddModelsView(QWidget):
             models = get_installed_ollama_models(url)
             model_info = f" • Models: {', '.join(models)}" if models else " (No models installed yet)"
             self.ollama_status_lbl.setText(f"✅ Running on {url}{model_info}")
-            self.ollama_status_lbl.setStyleSheet("color: #00D1FF; font-size: 11.5px; font-weight: bold;")
+            self.ollama_status_lbl.setStyleSheet("color: #00D1FF; font-size: 12px; font-weight: bold;")
             self.models_updated.emit()
         else:
             self.ollama_status_lbl.setText(f"❌ {msg}")
-            self.ollama_status_lbl.setStyleSheet("color: #ff5c77; font-size: 11.5px;")
+            self.ollama_status_lbl.setStyleSheet("color: #ff5c77; font-size: 12px;")
 
     def _test_ollama_action(self):
         url = self.ollama_url_input.text().strip() or "http://127.0.0.1:11434"
@@ -488,10 +488,10 @@ class AddModelsView(QWidget):
             models = get_installed_ollama_models(url)
             model_info = f" • Models: {', '.join(models)}" if models else " (No models installed yet)"
             self.ollama_status_lbl.setText(f"✅ Ollama is running on {url}{model_info}")
-            self.ollama_status_lbl.setStyleSheet("color: #00D1FF; font-size: 11.5px; font-weight: bold;")
+            self.ollama_status_lbl.setStyleSheet("color: #00D1FF; font-size: 12px; font-weight: bold;")
         else:
             self.ollama_status_lbl.setText(f"○ Ollama is currently stopped/offline at {url}. Click 'Start Ollama' above.")
-            self.ollama_status_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px;")
+            self.ollama_status_lbl.setStyleSheet("color: #94A3B8; font-size: 12px;")
 
     def _test_and_save_key(self, provider_id: str):
         key_edit = self.key_inputs.get(provider_id)

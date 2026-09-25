@@ -1,5 +1,5 @@
 """
-Hugging Face Provider for Sage AI (Lunar Engine).
+Hugging Face Provider for Sage AI.
 Serverless inference router for open-source foundation models.
 """
 import json

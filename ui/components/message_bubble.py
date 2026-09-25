@@ -1,5 +1,5 @@
 """
-Message Bubble Component for Sage AI (Lunar Engine).
+Message Bubble Component for Sage AI.
 Custom chat bubble cards for User and Assistant, formatted with Markdown,
 syntax-highlighted code blocks with one-click copy, citation chips, and generated image previews.
 """
@@ -7,12 +7,14 @@ import base64
 import html
 import re
 import time
+import math
 from typing import List, Dict, Any, Optional, Tuple
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QTextBrowser, QSizePolicy, QApplication, QFileDialog, QToolTip
+    QFrame, QTextBrowser, QSizePolicy, QApplication, QFileDialog, QToolTip,
+    QGraphicsOpacityEffect
 )
-from PySide6.QtCore import Qt, QUrl, QTimer
+from PySide6.QtCore import Qt, QUrl, QTimer, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QPixmap, QDesktopServices, QTextCursor, QCursor
 
 try:
@@ -155,18 +157,18 @@ def _render_code_card(code: str, lang: str, code_idx: int) -> str:
         f'border-radius: 10px; margin: 12px 0;">'
         f'<tr>'
         f'<td style="background-color: #162033; padding: 7px 14px; border-bottom: 1px solid #273449; '
-        f'color: #94A3B8; font-family: \'Segoe UI\', -apple-system, sans-serif; font-size: 11.5px; font-weight: 600;">'
+        f'color: #94A3B8; font-family: \'Segoe UI\', -apple-system, sans-serif; font-size: 12px; font-weight: 600;">'
         f'<span style="color: #00D1FF; font-weight: bold; font-family: monospace;">&lt;/&gt;</span> &nbsp;{lang_title}'
         f'</td>'
         f'<td align="right" style="background-color: #162033; padding: 7px 14px; border-bottom: 1px solid #273449; '
-        f'color: #94A3B8; font-family: \'Segoe UI\', -apple-system, sans-serif; font-size: 11.5px;">'
+        f'color: #94A3B8; font-family: \'Segoe UI\', -apple-system, sans-serif; font-size: 12px;">'
         f'<a href="copy:{code_idx}" style="color: #00D1FF; text-decoration: none; font-weight: 600;">📋 Copy</a>'
         f'</td>'
         f'</tr>'
         f'<tr>'
         f'<td colspan="2" style="padding: 12px 16px; background-color: #0A0F14;">'
         f'<pre style="margin: 0; padding: 0; background: transparent; border: none; color: #F8FAFC; '
-        f'font-family: \'Cascadia Code\', \'Consolas\', \'Courier New\', monospace; font-size: 12.5px; '
+        f'font-family: \'Cascadia Code\', \'Consolas\', \'Courier New\', monospace; font-size: 13px; '
         f'line-height: 1.35; white-space: pre;">{body_code}</pre>'
         f'</td>'
         f'</tr>'
@@ -260,7 +262,7 @@ def format_markdown_to_html(md_text: str, code_blocks_out: Optional[Dict[str, st
             padding: 10px;
             color: #F8FAFC;
             font-family: 'Cascadia Code', 'Consolas', monospace;
-            font-size: 12.5px;
+            font-size: 13px;
             line-height: 1.35;
             white-space: pre;
             overflow-x: auto;
@@ -392,7 +394,7 @@ class ThinkingSection(QFrame):
                 border: none;
                 color: #94A3B8;
                 font-family: 'Cascadia Code', 'Consolas', 'Segoe UI', monospace;
-                font-size: 11.5px;
+                font-size: 12px;
                 line-height: 1.45;
             }
         """)
@@ -461,12 +463,12 @@ class ThinkingSection(QFrame):
             self._cleanup_timer()
 
     def append_chunk(self, chunk: str):
-        """Appends streaming thinking tokens to the viewer."""
+        """Appends streaming thinking tokens to the viewer incrementally."""
         try:
             self.thinking_text += chunk
-            self.text_lbl.setPlainText(self.thinking_text)
             cursor = self.text_lbl.textCursor()
             cursor.movePosition(QTextCursor.End)
+            cursor.insertText(chunk)
             self.text_lbl.setTextCursor(cursor)
         except Exception:
             pass
@@ -492,10 +494,93 @@ class ThinkingSection(QFrame):
     def _toggle_expand(self):
         self.is_expanded = not self.is_expanded
         self.content_frame.setVisible(self.is_expanded)
+
         duration_str = f"Thought for {self.latency_s:.1f}s" if self.latency_s and self.latency_s > 0 else "Thinking Process"
         arrow = "▴" if self.is_expanded else "▾"
         label = f"✦  Thinking live  {arrow}" if self.is_live else f"✦  {duration_str}  {arrow}"
         self.header_btn.setText(label)
+
+
+class AnimatedImageGeneratingCard(QFrame):
+    """
+    Animated shimmer card displayed in the chat stream while an image is being generated.
+    Features:
+    - Moving light beam across dark glassmorphism canvas
+    - Rotating artistic emoji animation: 🎨 -> ✨ -> 🖌️ -> 🪄 -> 🔮 -> 🌌
+    - Live breathing neon border glow
+    - Real-time generation status text
+    """
+    ICONS = ["🎨", "✨", "🖌️", "🪄", "🔮", "🌌"]
+
+    def __init__(self, prompt: str = "", parent=None):
+        super().__init__(parent)
+        self.prompt = prompt
+        self._frame_idx = 0
+        self._pulse_step = 0.0
+
+        self.setFixedSize(500, 240)
+        self._init_ui()
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._on_tick)
+        self._timer.start(50)
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.setAlignment(Qt.AlignCenter)
+
+        self.icon_lbl = QLabel("🎨")
+        self.icon_lbl.setStyleSheet("font-size: 36px; background: transparent;")
+        self.icon_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.icon_lbl)
+
+        self.title_lbl = QLabel("Creating image with FLUX.1...")
+        self.title_lbl.setStyleSheet("color: #F8FAFC; font-size: 15px; font-weight: 800; background: transparent;")
+        self.title_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_lbl)
+
+        short_prompt = self.prompt
+        if len(short_prompt) > 65:
+            short_prompt = short_prompt[:62] + "..."
+        self.sub_lbl = QLabel(f'"{short_prompt}"' if short_prompt else "Diffusion sampling • Synthesizing high-res pixels")
+        self.sub_lbl.setStyleSheet("color: #00D1FF; font-size: 11px; font-weight: 600; font-style: italic; background: transparent;")
+        self.sub_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.sub_lbl)
+
+        self.badge_lbl = QLabel("● Synthesizing Latent Pixels  (100% Free Guaranteed • 0 Rs)")
+        self.badge_lbl.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 700; background: transparent;")
+        self.badge_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.badge_lbl)
+
+        self._update_style(0.3)
+
+    def _on_tick(self):
+        self._pulse_step += 0.09
+        idx = int(self._pulse_step * 2.2) % len(self.ICONS)
+        if idx != self._frame_idx:
+            self._frame_idx = idx
+            self.icon_lbl.setText(self.ICONS[self._frame_idx])
+
+        alpha = 0.25 + 0.35 * (0.5 * (1 + math.sin(self._pulse_step)))
+        self._update_style(alpha)
+
+    def _update_style(self, alpha: float):
+        self.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 rgba(17, 24, 39, 0.95),
+                    stop:0.5 rgba(22, 33, 54, 0.90),
+                    stop:1 rgba(10, 15, 20, 0.95));
+                border: 1.5px solid rgba(0, 209, 255, {alpha:.2f});
+                border-radius: 14px;
+            }}
+        """)
+
+    def stop(self):
+        if hasattr(self, "_timer") and self._timer.isActive():
+            self._timer.stop()
 
 
 class MessageBubble(QFrame):
@@ -514,6 +599,7 @@ class MessageBubble(QFrame):
         thinking: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         username: Optional[str] = None,
+        telemetry: Optional[Dict[str, Any]] = None,
         parent=None
     ):
         super().__init__(parent)
@@ -529,6 +615,11 @@ class MessageBubble(QFrame):
         self.attachments = attachments or []
         self.attachments_box: Optional[QWidget] = None
         self.username = username or "Suraj Sharma"
+        self.telemetry = telemetry or {}
+        self.telem_badge: Optional[QLabel] = None
+        self.header_layout: Optional[QHBoxLayout] = None
+        self.image_generating_card: Optional[AnimatedImageGeneratingCard] = None
+        self.img_container: Optional[QWidget] = None
         self._code_blocks: Dict[str, str] = {}
 
         # Extract thinking tags if present
@@ -629,14 +720,46 @@ class MessageBubble(QFrame):
                 time_lbl.setProperty("class", "timestampLabel")
                 header_layout.addWidget(time_lbl)
 
+            # Routing Telemetry Badge
+            if self.telemetry and "global_rank" in self.telemetry:
+                rank = self.telemetry.get("global_rank", 1)
+                score = self.telemetry.get("overall_score", 9.6)
+                fb_used = "Yes" if self.telemetry.get("fallback_used") else "No"
+                prov = self.telemetry.get("provider_id", "OpenRouter").upper()
+                mod = self.model or "Auto Model"
+
+                self.telem_badge = QLabel(f"🧭 Rank #{rank} • {score:.1f}")
+                self.telem_badge.setStyleSheet("""
+                    background: rgba(0, 209, 255, 0.12);
+                    color: #00D1FF;
+                    border: 1px solid rgba(0, 209, 255, 0.35);
+                    border-radius: 5px;
+                    font-size: 11px;
+                    font-weight: 700;
+                    padding: 2px 7px;
+                """)
+                tooltip_str = (
+                    f"Model: Auto\n"
+                    f"Provider: Auto\n"
+                    f"Mode: Balanced\n\n"
+                    f"Current Model: {mod}\n"
+                    f"Provider: {prov}\n"
+                    f"Rank: #{rank} / ALL 54 MODELS\n"
+                    f"Score: {score:.1f}\n"
+                    f"Fallback Used: {fb_used}"
+                )
+                self.telem_badge.setToolTip(tooltip_str)
+                header_layout.addWidget(self.telem_badge)
+
+            self.header_layout = header_layout
             header_layout.addStretch()
 
             # Copy response button
-            copy_btn = QPushButton("📋 Copy")
-            copy_btn.setProperty("class", "codeCopyBtn")
-            copy_btn.setToolTip("Copy message text")
-            copy_btn.clicked.connect(self._copy_raw_content)
-            header_layout.addWidget(copy_btn)
+            self.copy_btn = QPushButton("📋 Copy")
+            self.copy_btn.setProperty("class", "codeCopyBtn")
+            self.copy_btn.setToolTip("Copy message text")
+            self.copy_btn.clicked.connect(self._copy_raw_content)
+            header_layout.addWidget(self.copy_btn)
 
             layout.addLayout(header_layout)
 
@@ -667,70 +790,12 @@ class MessageBubble(QFrame):
                     att_layout.addWidget(chip)
                 layout.addWidget(att_box)
 
-            # Image preview if present with interactive Save, Copy, and View actions
-            if self.is_image and self.image_data:
-                try:
-                    img_bytes = base64.b64decode(self.image_data)
-                    pixmap = QPixmap()
-                    pixmap.loadFromData(img_bytes)
-                    if not pixmap.isNull():
-                        img_container = QWidget()
-                        img_c_layout = QVBoxLayout(img_container)
-                        img_c_layout.setContentsMargins(0, 4, 0, 8)
-                        img_c_layout.setSpacing(8)
-
-                        scaled_pixmap = pixmap.scaledToWidth(min(600, pixmap.width()), Qt.SmoothTransformation)
-                        img_label = QLabel()
-                        img_label.setPixmap(scaled_pixmap)
-                        img_label.setAlignment(Qt.AlignCenter)
-                        img_label.setStyleSheet("border: 1px solid rgba(0, 209, 255, 0.35); border-radius: 10px; background-color: #0A0F14; padding: 4px;")
-                        img_c_layout.addWidget(img_label)
-
-                        # Action bar: Save, Copy, View Full
-                        action_bar = QHBoxLayout()
-                        action_bar.setSpacing(8)
-                        action_bar.setAlignment(Qt.AlignLeft)
-
-                        btn_style = """
-                            QPushButton {
-                                background-color: #162033;
-                                color: #00D1FF;
-                                border: 1px solid rgba(0, 209, 255, 0.3);
-                                border-radius: 6px;
-                                padding: 4px 10px;
-                                font-size: 11px;
-                                font-weight: 600;
-                            }
-                            QPushButton:hover {
-                                background-color: rgba(0, 209, 255, 0.18);
-                                border-color: #00D1FF;
-                            }
-                        """
-
-                        save_btn = QPushButton("💾 Save Image")
-                        save_btn.setStyleSheet(btn_style)
-                        save_btn.setCursor(Qt.PointingHandCursor)
-                        save_btn.clicked.connect(lambda: self._save_image(pixmap))
-                        action_bar.addWidget(save_btn)
-
-                        copy_btn = QPushButton("📋 Copy Image")
-                        copy_btn.setStyleSheet(btn_style)
-                        copy_btn.setCursor(Qt.PointingHandCursor)
-                        copy_btn.clicked.connect(lambda: self._copy_image(pixmap, copy_btn))
-                        action_bar.addWidget(copy_btn)
-
-                        view_btn = QPushButton("🔍 View Full")
-                        view_btn.setStyleSheet(btn_style)
-                        view_btn.setCursor(Qt.PointingHandCursor)
-                        view_btn.clicked.connect(lambda: self._view_full_image(pixmap))
-                        action_bar.addWidget(view_btn)
-
-                        action_bar.addStretch()
-                        img_c_layout.addLayout(action_bar)
-
-                        layout.addWidget(img_container)
-                except Exception:
-                    pass
+            # Image preview or loading shimmer card
+            if self.is_image:
+                if self.image_data:
+                    self._render_image_container(layout=layout, smooth_reveal=False)
+                else:
+                    self.show_image_loading(self.display_content or self.raw_content, layout=layout)
 
             # Claude-style Thinking Section (if present)
             self.thinking_widget: Optional[ThinkingSection] = None
@@ -798,13 +863,24 @@ class MessageBubble(QFrame):
             self.thinking_widget.finish_live(duration_s)
 
     def append_live_response_chunk(self, chunk: str):
-        """Streams response tokens into the main markdown view in real time."""
+        """Streams response tokens into the main markdown view in real time with 35ms smooth throttling."""
         self.display_content += chunk
         self.raw_content += chunk
-        self._code_blocks.clear()
-        html_content = format_markdown_to_html(self.display_content, self._code_blocks)
-        self.text_browser.setHtml(html_content)
-        self._adjust_browser_height()
+        if not hasattr(self, "_render_timer"):
+            self._render_timer = QTimer(self)
+            self._render_timer.setSingleShot(True)
+            self._render_timer.timeout.connect(self._flush_live_render)
+
+        if not self._render_timer.isActive():
+            self._render_timer.start(35)
+
+    def _flush_live_render(self):
+        """Renders accumulated markdown into html smoothly without freezing GUI loop."""
+        if hasattr(self, "text_browser") and self.text_browser:
+            self._code_blocks.clear()
+            html_content = format_markdown_to_html(self.display_content, self._code_blocks)
+            self.text_browser.setHtml(html_content)
+            self._adjust_browser_height()
 
     def _adjust_browser_height(self):
         try:
@@ -858,6 +934,15 @@ class MessageBubble(QFrame):
         clipboard = QApplication.clipboard()
         if clipboard:
             clipboard.setText(self.raw_content)
+        if hasattr(self, "copy_btn") and self.copy_btn:
+            try:
+                from ui.components.animation_system import button_micro_press
+                button_micro_press(self.copy_btn)
+            except Exception:
+                pass
+            orig_text = "📋 Copy"
+            self.copy_btn.setText("✅ Copied!")
+            QTimer.singleShot(1500, lambda: self.copy_btn.setText(orig_text) if hasattr(self, "copy_btn") and self.copy_btn else None)
 
     def _save_image(self, pixmap: QPixmap):
         path, _ = QFileDialog.getSaveFileName(
@@ -875,10 +960,166 @@ class MessageBubble(QFrame):
         btn.setText("✅ Copied!")
         QTimer.singleShot(1800, lambda: btn.setText(orig_text))
 
-    def _view_full_image(self, pixmap: QPixmap):
-        import tempfile
-        import os
-        tmp = os.path.join(tempfile.gettempdir(), f"sage_view_{int(time.time())}.png")
-        pixmap.save(tmp, "PNG")
-        QDesktopServices.openUrl(QUrl.fromLocalFile(tmp))
+    def set_telemetry(self, telemetry: Dict[str, Any]):
+        """Dynamically attaches routing telemetry to the message bubble header."""
+        self.telemetry = telemetry
+        if not telemetry or "global_rank" not in telemetry or not self.header_layout:
+            return
+
+        rank = telemetry.get("global_rank", 1)
+        score = telemetry.get("overall_score", 9.6)
+        fb_used = "Yes" if telemetry.get("fallback_used") else "No"
+        prov = telemetry.get("provider_id", "OpenRouter").upper()
+        mod = self.model or "Auto Model"
+
+        tooltip_str = (
+            f"Model: Auto\n"
+            f"Provider: Auto\n"
+            f"Mode: Balanced\n\n"
+            f"Current Model: {mod}\n"
+            f"Provider: {prov}\n"
+            f"Rank: #{rank} / ALL 54 MODELS\n"
+            f"Score: {score:.1f}\n"
+            f"Fallback Used: {fb_used}"
+        )
+
+        if self.telem_badge:
+            self.telem_badge.setText(f"🧭 Rank #{rank} • {score:.1f}")
+            self.telem_badge.setToolTip(tooltip_str)
+        else:
+            self.telem_badge = QLabel(f"🧭 Rank #{rank} • {score:.1f}")
+            self.telem_badge.setStyleSheet("""
+                background: rgba(0, 209, 255, 0.12);
+                color: #00D1FF;
+                border: 1px solid rgba(0, 209, 255, 0.35);
+                border-radius: 5px;
+                font-size: 11px;
+                font-weight: 700;
+                padding: 2px 7px;
+            """)
+            self.telem_badge.setToolTip(tooltip_str)
+            # Insert right before the trailing stretch
+            insert_idx = max(0, self.header_layout.count() - 2)
+            self.header_layout.insertWidget(insert_idx, self.telem_badge)
+
+    def show_image_loading(self, prompt: str = "", layout: Optional[QVBoxLayout] = None):
+        """Displays animated image creation shimmer card while generation is in progress."""
+        self.is_image = True
+        target_layout = layout or self.layout()
+        if hasattr(self, "text_browser") and not self.display_content:
+            self.text_browser.setVisible(False)
+        if not self.image_generating_card:
+            self.image_generating_card = AnimatedImageGeneratingCard(prompt, self)
+            if target_layout:
+                target_layout.addWidget(self.image_generating_card)
+        self._adjust_browser_height()
+
+    def set_generated_image(self, image_data: str, content: str = "", latency_ms: Optional[float] = None):
+        """Replaces image generation loading card with the final rendered image using a smooth reveal animation."""
+        if hasattr(self, "image_generating_card") and self.image_generating_card:
+            self.image_generating_card.stop()
+            self.image_generating_card.deleteLater()
+            self.image_generating_card = None
+
+        self.image_data = image_data
+        self.is_image = True
+        self.latency_ms = latency_ms
+
+        if content and hasattr(self, "text_browser"):
+            self.text_browser.setVisible(True)
+            self.raw_content = content
+            self.display_content = content
+            html = format_markdown_to_html(content)
+            self.text_browser.setHtml(html)
+
+        self._render_image_container(smooth_reveal=True)
+        self._adjust_browser_height()
+
+    def _render_image_container(self, layout: Optional[QVBoxLayout] = None, smooth_reveal: bool = False):
+        if not self.image_data:
+            return
+        try:
+            target_layout = layout or self.layout()
+            if self.img_container:
+                self.img_container.deleteLater()
+                self.img_container = None
+
+            img_bytes = base64.b64decode(self.image_data)
+            pixmap = QPixmap()
+            pixmap.loadFromData(img_bytes)
+            if not pixmap.isNull():
+                img_container = QWidget()
+                self.img_container = img_container
+                img_c_layout = QVBoxLayout(img_container)
+                img_c_layout.setContentsMargins(0, 4, 0, 8)
+                img_c_layout.setSpacing(8)
+
+                scaled_pixmap = pixmap.scaledToWidth(min(600, pixmap.width()), Qt.SmoothTransformation)
+                img_label = QLabel()
+                img_label.setPixmap(scaled_pixmap)
+                img_label.setAlignment(Qt.AlignCenter)
+                img_label.setStyleSheet("border: 1px solid rgba(0, 209, 255, 0.35); border-radius: 10px; background-color: #0A0F14; padding: 4px;")
+                img_c_layout.addWidget(img_label)
+
+                # Action bar: Save, Copy, View Full
+                action_bar = QHBoxLayout()
+                action_bar.setSpacing(8)
+                action_bar.setAlignment(Qt.AlignLeft)
+
+                btn_style = """
+                    QPushButton {
+                        background-color: #162033;
+                        color: #00D1FF;
+                        border: 1px solid rgba(0, 209, 255, 0.3);
+                        border-radius: 6px;
+                        padding: 4px 10px;
+                        font-size: 11px;
+                        font-weight: 600;
+                    }
+                    QPushButton:hover {
+                        background-color: rgba(0, 209, 255, 0.18);
+                        border-color: #00D1FF;
+                    }
+                """
+
+                save_btn = QPushButton("💾 Save Image")
+                save_btn.setStyleSheet(btn_style)
+                save_btn.setCursor(Qt.PointingHandCursor)
+                save_btn.clicked.connect(lambda: self._save_image(pixmap))
+                action_bar.addWidget(save_btn)
+
+                copy_btn = QPushButton("📋 Copy Image")
+                copy_btn.setStyleSheet(btn_style)
+                copy_btn.setCursor(Qt.PointingHandCursor)
+                copy_btn.clicked.connect(lambda: self._copy_image(pixmap, copy_btn))
+                action_bar.addWidget(copy_btn)
+
+                view_btn = QPushButton("🔍 View Full")
+                view_btn.setStyleSheet(btn_style)
+                view_btn.setCursor(Qt.PointingHandCursor)
+                view_btn.clicked.connect(lambda: self._view_full_image(pixmap))
+                action_bar.addWidget(view_btn)
+
+                action_bar.addStretch()
+                img_c_layout.addLayout(action_bar)
+
+                if target_layout:
+                    target_layout.addWidget(img_container)
+
+                if smooth_reveal:
+                    eff = QGraphicsOpacityEffect(img_container)
+                    img_container.setGraphicsEffect(eff)
+                    eff.setOpacity(0.0)
+                    anim = QPropertyAnimation(eff, b"opacity", img_container)
+                    anim.setDuration(320)
+                    anim.setStartValue(0.0)
+                    anim.setEndValue(1.0)
+                    anim.setEasingCurve(QEasingCurve.OutCubic)
+                    def _clear_eff():
+                        img_container.setGraphicsEffect(None)
+                    anim.finished.connect(_clear_eff)
+                    img_container._reveal_anim = anim
+                    anim.start()
+        except Exception:
+            pass
 

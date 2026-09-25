@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QScrollArea, QSizePolicy, QInputDialog, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QPixmap, QCursor
 
 
@@ -45,7 +45,7 @@ class ChatSessionItem(QFrame):
         layout.addWidget(icon_lbl)
 
         self.title_lbl = QLabel(self.title)
-        self.title_lbl.setStyleSheet("font-size: 11.5px; font-weight: 500; background: transparent; border: none;")
+        self.title_lbl.setStyleSheet("font-size: 12px; font-weight: 500; background: transparent; border: none;")
         self.title_lbl.setToolTip(self.title)
         layout.addWidget(self.title_lbl, 1)
 
@@ -105,7 +105,7 @@ class ChatSessionItem(QFrame):
                     border-radius: 6px;
                 }
             """)
-            self.title_lbl.setStyleSheet("color: #00D1FF; font-size: 11.5px; font-weight: 700; background: transparent; border: none;")
+            self.title_lbl.setStyleSheet("color: #00D1FF; font-size: 12px; font-weight: 700; background: transparent; border: none;")
         else:
             self.setStyleSheet("""
                 QFrame {
@@ -118,12 +118,125 @@ class ChatSessionItem(QFrame):
                     border-color: #1f2d42;
                 }
             """)
-            self.title_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px; font-weight: 500; background: transparent; border: none;")
+            self.title_lbl.setStyleSheet("color: #94A3B8; font-size: 12px; font-weight: 500; background: transparent; border: none;")
 
     def set_title(self, new_title: str):
         self.title = new_title
         self.title_lbl.setText(new_title)
         self.title_lbl.setToolTip(new_title)
+
+
+class AnimatedZeroCostGuardWidget(QFrame):
+    """
+    Animated Zero-Cost Guard status card in the sidebar.
+    Features:
+    - Breathing neon-emerald glow border
+    - Pulsating beacon: '● 0 Rs Enforced'
+    - Live cost savings counter in Indian Rupees (₹)
+    - Clickable to view the Zero-Cost Guard Analytics & Interception Dialog
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("zeroCostSidebarWidget")
+        self.setCursor(Qt.PointingHandCursor)
+        self._pulse_step = 0.0
+
+        self.setToolTip("🛡️ Zero-Cost Guard Architecture Active\nEvery AI request is guaranteed ≤ 0 Rs.\nClick to view full interception analytics & savings.")
+
+        self._init_ui()
+
+        # Timer disabled to eliminate continuous stylesheet re-parsing and UI lag
+        self._timer = QTimer(self)
+        # self._timer.timeout.connect(self._animate_pulse)
+        # self._timer.start(45)
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(3)
+
+        top_row = QHBoxLayout()
+        top_row.setContentsMargins(0, 0, 0, 0)
+        top_row.setSpacing(6)
+
+        shield_icon = QLabel("🛡️")
+        shield_icon.setStyleSheet("font-size: 13px; background: transparent;")
+        top_row.addWidget(shield_icon)
+
+        title_lbl = QLabel("0 Rs Guard")
+        title_lbl.setStyleSheet("color: #F8FAFC; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; background: transparent;")
+        top_row.addWidget(title_lbl)
+
+        top_row.addStretch()
+
+        self.beacon_lbl = QLabel("● ACTIVE")
+        self.beacon_lbl.setStyleSheet("color: #10b981; font-size: 9px; font-weight: 800; background: transparent;")
+        top_row.addWidget(self.beacon_lbl)
+        layout.addLayout(top_row)
+
+        self.savings_lbl = QLabel("100% Free Guaranteed (0 Rs)")
+        self.savings_lbl.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 600; background: transparent;")
+        layout.addWidget(self.savings_lbl)
+
+        self._update_style(0.25)
+        self.refresh_stats()
+
+    def _animate_pulse(self):
+        import math
+        self._pulse_step += 0.08
+        alpha = 0.20 + 0.35 * (0.5 * (1 + math.sin(self._pulse_step)))
+        beacon_alpha = 0.40 + 0.60 * (0.5 * (1 + math.sin(self._pulse_step)))
+        self._update_style(alpha)
+        self.beacon_lbl.setStyleSheet(f"color: rgba(16, 185, 129, {beacon_alpha:.2f}); font-size: 9px; font-weight: 800; background: transparent;")
+
+    def _update_style(self, alpha: float):
+        self.setStyleSheet(f"""
+            QFrame#zeroCostSidebarWidget {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(16, 185, 129, 0.14),
+                    stop:1 rgba(15, 230, 181, 0.05));
+                border: 1px solid rgba(16, 185, 129, {alpha:.2f});
+                border-radius: 9px;
+            }}
+            QFrame#zeroCostSidebarWidget:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(16, 185, 129, 0.22),
+                    stop:1 rgba(15, 230, 181, 0.10));
+                border-color: #0FE6B5;
+            }}
+        """)
+
+    def refresh_stats(self):
+        try:
+            from database.db_manager import get_db
+            stats = get_db().get_zero_cost_stats()
+            saved = stats.get("total_saved_rs", 0.0)
+            count = stats.get("total_intercepted", 0)
+            if count > 0:
+                self.savings_lbl.setText(f"₹{saved:.2f} Rs Saved ({count} shifts)")
+            else:
+                self.savings_lbl.setText("100% Free Guaranteed (0 Rs)")
+        except Exception:
+            pass
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            from ui.components.zero_cost_dialog import ZeroCostGuardDialog
+            dlg = ZeroCostGuardDialog(self)
+            dlg.exec()
+            self.refresh_stats()
+        super().mousePressEvent(event)
+
+    def showEvent(self, event):
+        if hasattr(self, "_timer") and not self._timer.isActive():
+            self._timer.start(45)
+        super().showEvent(event)
+
+    def hideEvent(self, event):
+        if hasattr(self, "_timer") and self._timer.isActive():
+            self._timer.stop()
+        super().hideEvent(event)
 
 
 class Sidebar(QWidget):
@@ -183,7 +296,7 @@ class Sidebar(QWidget):
                 color: #00D1FF;
                 border: 1px solid rgba(0, 209, 255, 0.45);
                 border-radius: 8px;
-                font-size: 12.5px;
+                font-size: 13px;
                 font-weight: 700;
             }
             QPushButton:hover {
@@ -199,6 +312,10 @@ class Sidebar(QWidget):
         self.nav_scroll = QScrollArea()
         self.nav_scroll.setWidgetResizable(True)
         self.nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        nav_container = QWidget()
+        nav_container.setStyleSheet("background: transparent;")
+        self.nav_scroll.setWidget(nav_container)
         self.nav_scroll.setStyleSheet("""
             QScrollArea {
                 background: transparent;
@@ -221,8 +338,6 @@ class Sidebar(QWidget):
             }
         """)
 
-        nav_container = QWidget()
-        nav_container.setStyleSheet("background: transparent;")
         self.nav_layout = QVBoxLayout(nav_container)
         self.nav_layout.setContentsMargins(0, 2, 0, 2)
         self.nav_layout.setSpacing(3)
@@ -230,6 +345,7 @@ class Sidebar(QWidget):
         nav_items = [
             ("home", "🏠  Home"),
             ("chat", "💬  Chat"),
+            ("auto_router", "🧭  Auto Router Queue"),
             ("multi_agent", "🤖  Multi-Agent Hub"),
             ("coding_agent", "</>  Coding Agent"),
             ("automations", "⚡  Automation"),
@@ -259,12 +375,12 @@ class Sidebar(QWidget):
         history_header_row.setContentsMargins(6, 4, 6, 2)
         
         hist_title = QLabel("Recent Chats")
-        hist_title.setStyleSheet("color: #64748B; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; background: transparent;")
+        hist_title.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; background: transparent;")
         history_header_row.addWidget(hist_title)
         history_header_row.addStretch()
 
         self.hist_count_lbl = QLabel("0")
-        self.hist_count_lbl.setStyleSheet("color: #00D1FF; font-size: 9.5px; font-weight: 700; background: rgba(0, 209, 255, 0.12); padding: 1px 6px; border-radius: 4px;")
+        self.hist_count_lbl.setStyleSheet("color: #00D1FF; font-size: 10px; font-weight: 700; background: rgba(0, 209, 255, 0.12); padding: 1px 6px; border-radius: 4px;")
         history_header_row.addWidget(self.hist_count_lbl)
         self.nav_layout.addLayout(history_header_row)
 
@@ -282,8 +398,12 @@ class Sidebar(QWidget):
         self.nav_layout.addWidget(self.sessions_container)
         self.nav_layout.addStretch(1)
 
-        self.nav_scroll.setWidget(nav_container)
         main_layout.addWidget(self.nav_scroll, 1)
+
+        # 4b. Zero-Cost Guard Status Pill hidden from UI (underlying architecture remains active)
+        self.zero_cost_widget = AnimatedZeroCostGuardWidget()
+        self.zero_cost_widget.setVisible(False)
+        # main_layout.addWidget(self.zero_cost_widget) - Removed from UI per request
 
         # 5. User Profile Pill
         profile_pill = QFrame()
@@ -357,7 +477,7 @@ class Sidebar(QWidget):
                         color: #00D1FF;
                         border: 1px solid rgba(0, 209, 255, 0.4);
                         border-radius: 8px;
-                        font-size: 12.5px;
+                        font-size: 13px;
                         font-weight: 700;
                         padding-left: 14px;
                         text-align: left;
@@ -370,7 +490,7 @@ class Sidebar(QWidget):
                         color: #94A3B8;
                         border: none;
                         border-radius: 8px;
-                        font-size: 12.5px;
+                        font-size: 13px;
                         font-weight: 600;
                         padding-left: 14px;
                         text-align: left;

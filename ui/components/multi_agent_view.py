@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTextEdit, QTextBrowser, QScrollArea, QFrame, QGridLayout,
     QProgressBar, QSplitter, QComboBox, QFileDialog, QSizePolicy, QDialog,
-    QMenu, QApplication
+    QMenu, QApplication, QTabWidget
 )
 from PySide6.QtCore import Qt, Signal, QObject, QTimer, QSize
 from PySide6.QtGui import QFont, QColor, QPixmap, QPainter, QCursor, QAction
@@ -72,7 +72,7 @@ class GoalTextEdit(QTextEdit):
                 background: transparent;
                 border: none;
                 color: #F8FAFC;
-                font-size: 13.5px;
+                font-size: 14px;
                 line-height: 1.4;
                 padding: 4px 2px;
                 selection-background-color: #0284C7;
@@ -148,7 +148,7 @@ class CategoryTile(QFrame):
         self.title_lbl = QLabel(self.title_text)
         self.title_lbl.setStyleSheet(f"""
             QLabel {{
-                font-size: 13.5px;
+                font-size: 14px;
                 font-weight: 700;
                 color: #F8FAFC;
                 background: transparent;
@@ -243,7 +243,7 @@ class FileChip(QFrame):
             QLabel {{
                 background-color: {bg_badge};
                 color: #FFFFFF;
-                font-size: 8.5px;
+                font-size: 9px;
                 font-weight: 800;
                 padding: 1px 4px;
                 border-radius: 3px;
@@ -254,7 +254,7 @@ class FileChip(QFrame):
         # File name (truncated)
         short_name = self.filename if len(self.filename) <= 24 else self.filename[:21] + "..."
         name_lbl = QLabel(short_name)
-        name_lbl.setStyleSheet("color: #E2E8F0; font-size: 11.5px; font-weight: 600; background: transparent;")
+        name_lbl.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600; background: transparent;")
         name_lbl.setToolTip(self.filename)
         layout.addWidget(name_lbl)
 
@@ -403,7 +403,7 @@ class RecentTaskRow(QFrame):
                     background: rgba(16, 185, 129, 0.12);
                     border: 1px solid rgba(16, 185, 129, 0.3);
                     border-radius: 11px;
-                    font-size: 10.5px;
+                    font-size: 11px;
                     font-weight: 700;
                     padding: 2px 10px;
                 }
@@ -416,7 +416,7 @@ class RecentTaskRow(QFrame):
                     background: rgba(0, 209, 255, 0.12);
                     border: 1px solid rgba(0, 209, 255, 0.35);
                     border-radius: 11px;
-                    font-size: 10.5px;
+                    font-size: 11px;
                     font-weight: 700;
                     padding: 2px 10px;
                 }
@@ -429,7 +429,7 @@ class RecentTaskRow(QFrame):
                     background: rgba(148, 163, 184, 0.1);
                     border: 1px solid rgba(148, 163, 184, 0.25);
                     border-radius: 11px;
-                    font-size: 10.5px;
+                    font-size: 11px;
                     font-weight: 600;
                     padding: 2px 10px;
                 }
@@ -520,7 +520,7 @@ class AgentStatusItem(QFrame):
         layout.addWidget(icon_lbl)
 
         name_lbl = QLabel(self.agent_name)
-        name_lbl.setStyleSheet("color: #E2E8F0; font-size: 11.5px; font-weight: 600; background: transparent;")
+        name_lbl.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 600; background: transparent;")
         layout.addWidget(name_lbl, 1)
 
         self.status_dot = QLabel("✔ Ready")
@@ -653,7 +653,7 @@ class LiveExecutionDialog(QDialog):
         bus_layout = QVBoxLayout(bus_box)
         bus_layout.setContentsMargins(10, 8, 10, 8)
         bus_header = QLabel("📡 Inter-Agent Bus Feed")
-        bus_header.setStyleSheet("color: #00D1FF; font-size: 11.5px; font-weight: 700;")
+        bus_header.setStyleSheet("color: #00D1FF; font-size: 12px; font-weight: 700;")
         bus_layout.addWidget(bus_header)
 
         self.bus_browser = QTextBrowser()
@@ -667,7 +667,7 @@ class LiveExecutionDialog(QDialog):
         out_layout = QVBoxLayout(out_box)
         out_layout.setContentsMargins(10, 8, 10, 8)
         out_header = QLabel("📦 Deliverables & Artifacts")
-        out_header.setStyleSheet("color: #34D399; font-size: 11.5px; font-weight: 700;")
+        out_header.setStyleSheet("color: #34D399; font-size: 12px; font-weight: 700;")
         out_layout.addWidget(out_header)
 
         self.out_browser = QTextBrowser()
@@ -679,6 +679,447 @@ class LiveExecutionDialog(QDialog):
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 6)
         layout.addWidget(splitter, 1)
+
+
+# ---------------------------------------------------------------------------
+# Subcomponent 7: Multi-Agent Hub Interactive Tutorial & Guide Dialog
+# ---------------------------------------------------------------------------
+class MultiAgentTutorialDialog(QDialog):
+    """Displays an interactive, step-by-step master tutorial and guide for the Multi-Agent Hub."""
+
+    example_loaded = Signal(str, str)  # prompt, agent_name
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Sage AI • Multi-Agent Hub Complete Interactive Guide")
+        self.resize(880, 640)
+        self.setMinimumSize(760, 520)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #070D18;
+                color: #F8FAFC;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+            QTabWidget::pane {
+                border: 1px solid #1A2840;
+                border-radius: 10px;
+                background-color: #0B1322;
+                padding: 14px;
+            }
+            QTabBar::tab {
+                background-color: #101B2E;
+                color: #94A3B8;
+                padding: 9px 18px;
+                margin-right: 4px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                font-weight: 600;
+                font-size: 12px;
+            }
+            QTabBar::tab:selected {
+                background-color: #0B1322;
+                color: #00D1FF;
+                border-top: 2px solid #00D1FF;
+            }
+            QScrollBar:vertical {
+                background: #08101E;
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #1E2E4A;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #00D1FF;
+            }
+        """)
+        self._init_ui()
+
+    def _make_scroll_tab(self, inner_widget: QWidget) -> QScrollArea:
+        sa = QScrollArea()
+        sa.setWidgetResizable(True)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sa.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        sa.setWidget(inner_widget)
+        return sa
+
+    def _init_ui(self):
+        root_l = QVBoxLayout(self)
+        root_l.setContentsMargins(20, 16, 20, 16)
+        root_l.setSpacing(12)
+
+        # Header
+        hdr_row = QHBoxLayout()
+        hdr_row.setSpacing(14)
+
+        icon_lbl = QLabel("🤖")
+        icon_lbl.setStyleSheet("font-size: 28px; background: transparent;")
+        hdr_row.addWidget(icon_lbl)
+
+        hdr_info = QVBoxLayout()
+        hdr_info.setSpacing(2)
+
+        t_lbl = QLabel("Multi-Agent Hub • Interactive Guide & Tutorial")
+        t_lbl.setStyleSheet("color: #F8FAFC; font-size: 18px; font-weight: 800;")
+        hdr_info.addWidget(t_lbl)
+
+        s_lbl = QLabel("Master autonomous multi-agent orchestration, specialized agents, live communication bus, and AST validation.")
+        s_lbl.setStyleSheet("color: #94A3B8; font-size: 12px;")
+        hdr_info.addWidget(s_lbl)
+        hdr_row.addLayout(hdr_info, 1)
+
+        # Badges on top-right
+        badges_col = QVBoxLayout()
+        badges_col.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        badges_col.setSpacing(4)
+
+        badge_row = QHBoxLayout()
+        badge_row.setSpacing(6)
+        for b_text, b_color in [("⚡ Orchestrator v2.0", "#00D1FF"), ("👥 7 Agents Online", "#10B981"), ("🚌 Live Bus", "#C084FC")]:
+            b_lbl = QLabel(b_text)
+            b_lbl.setStyleSheet(f"""
+                QLabel {{
+                    background: rgba(16, 27, 46, 0.8);
+                    color: {b_color};
+                    border: 1px solid {b_color}44;
+                    border-radius: 10px;
+                    font-size: 10px;
+                    font-weight: 700;
+                    padding: 2px 8px;
+                }}
+            """)
+            badge_row.addWidget(b_lbl)
+        badges_col.addLayout(badge_row)
+        hdr_row.addLayout(badges_col)
+
+        root_l.addLayout(hdr_row)
+
+        # Tabs
+        self.tabs = QTabWidget()
+
+        # -------------------------------------------------------------------
+        # Tab 1: 🚀 Quickstart
+        # -------------------------------------------------------------------
+        t1_w = QWidget()
+        t1_l = QVBoxLayout(t1_w)
+        t1_l.setContentsMargins(8, 8, 8, 8)
+        t1_l.setSpacing(12)
+
+        t1_content = QLabel("""
+        <h3 style='color: #00D1FF; margin-top: 0; font-size: 15px;'>🚀 3-Step Autonomous Orchestration</h3>
+        <p style='color: #CBD5E1; font-size: 12px; line-height: 1.6;'>
+            Unlike traditional single-turn chatbots that hallucinate or stop halfway, the <b>Sage Multi-Agent Hub</b> acts as an entire software engineering and research department. A central <b>Core Brain Orchestrator</b> analyzes your objective, breaks it down into structured dependencies (DAG), dispatches tasks to specialized agents, and runs AST self-reflection before presenting completed deliverables.
+        </p>
+
+        <div style='background: #0F1A2E; border: 1px solid rgba(0, 209, 255, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 6px;'>
+            <div style='color: #FBBF24; font-weight: 700; font-size: 13px; margin-bottom: 4px;'>Step 1: Express Any Objective or Pick an Intent</div>
+            <p style='color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.5;'>
+                Click one of the 6 quick intent pills at the top (<b>💬 Chat</b>, <b>✨ Create</b>, <b>📊 Analyze</b>, <b>&lt;/&gt; Code</b>, <b>⚙️ Automate</b>, <b>📅 Plan</b>) or type directly in the prompt area. You can state complex multi-phase goals such as:<br>
+                <i style='color: #38BDF8;'>\"Build a modern responsive landing page website, analyze user retention data, render an architecture diagram, and write tests.\"</i>
+            </p>
+        </div>
+
+        <div style='background: #0F1A2E; border: 1px solid rgba(0, 209, 255, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 6px;'>
+            <div style='color: #00D1FF; font-weight: 700; font-size: 13px; margin-bottom: 4px;'>Step 2: Provide Context & Choose Routing</div>
+            <p style='color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.5;'>
+                • <b>Attach Files / Folders</b>: Click <b style='color: #fff;'>＋ Add Files</b> or <b style='color: #fff;'>📁 Add Folder</b> to attach PDFs, CSV datasets, source code, or images.<br>
+                • <b>Live Web Search</b>: Toggle <b style='color: #fff;'>🌐 Web Search</b> for real-time online intelligence and documentation.<br>
+                • <b>Agent Selector</b>: Keep on <b style='color: #00D1FF;'>✨ Agent: Auto</b> so the Core Brain assigns each subtask to the best specialist automatically, or select an agent directly from the dropdown.
+            </p>
+        </div>
+
+        <div style='background: #0F1A2E; border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px;'>
+            <div style='color: #10B981; font-weight: 700; font-size: 13px; margin-bottom: 4px;'>Step 3: Click Send (✈) & Watch Live Collaboration</div>
+            <p style='color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.5;'>
+                Hit <b style='color: #fff;'>✈ Send</b> (or press <b style='color: #fff;'>Enter</b>). The Orchestrator plans execution steps, agents exchange live messages across the <b>Communication Bus</b>, and AST Self-Reflection validates syntax correctness before returning verified files and code in the <b>Deliverables Drawer</b>.
+            </p>
+        </div>
+        """)
+        t1_content.setTextFormat(Qt.RichText)
+        t1_content.setWordWrap(True)
+        t1_l.addWidget(t1_content)
+        t1_l.addStretch()
+        self.tabs.addTab(self._make_scroll_tab(t1_w), "🚀 Quickstart")
+
+        # -------------------------------------------------------------------
+        # Tab 2: 👥 7 Specialized Agents
+        # -------------------------------------------------------------------
+        t2_w = QWidget()
+        t2_l = QVBoxLayout(t2_w)
+        t2_l.setContentsMargins(8, 8, 8, 8)
+        t2_l.setSpacing(10)
+
+        t2_intro = QLabel("""
+        <h3 style='color: #00D1FF; margin-top: 0; font-size: 15px;'>👥 Meet Your 7 Specialized Autonomous Agents</h3>
+        <p style='color: #CBD5E1; font-size: 12px; margin-bottom: 6px;'>
+            Every agent has dedicated prompt instructions, tool capabilities, and verification heuristics:
+        </p>
+        """)
+        t2_intro.setTextFormat(Qt.RichText)
+        t2_l.addWidget(t2_intro)
+
+        agents_info = [
+            ("🔍 Research Agent", "#00D1FF", "Web intelligence, technical documentation, academic papers, competitive audits, and fact synthesis."),
+            ("💻 Coding Agent", "#FBBF24", "Full-stack code generation, unit tests, bug fixing, AST syntax checking, and multi-file project authoring."),
+            ("🖼️ Image & Media Agent", "#C084FC", "High-resolution visual mockups, SVG architecture diagrams, flowchart rendering, and multimedia design."),
+            ("📊 Data Analysis Agent", "#34D399", "Statistical computations, CSV/Excel table processing, trend detection, KPI benchmarks, and data visualizers."),
+            ("📝 Content Agent", "#EC4899", "Technical articles, executive briefings, marketing copy, release notes, and structured documentation."),
+            ("⚙️ Execution Agent", "#F472B6", "Safe local system tasks, workspace directory operations, shell scripts, and terminal actions."),
+            ("📅 Planning Agent", "#818CF8", "Sprint decomposition, milestone sequencing, dependency graphs, and agile task scheduling."),
+            ("🧠 Core Brain & Reflection", "#38BDF8", "Central DAG orchestrator and AST syntax validator guaranteeing 95%+ output correctness and consistency."),
+        ]
+
+        for a_title, a_color, a_desc in agents_info:
+            card = QFrame()
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background: #0E182A;
+                    border: 1px solid {a_color}33;
+                    border-radius: 8px;
+                    padding: 6px 10px;
+                }}
+            """)
+            c_l = QHBoxLayout(card)
+            c_l.setContentsMargins(8, 6, 8, 6)
+            c_l.setSpacing(10)
+
+            title_lbl = QLabel(a_title)
+            title_lbl.setStyleSheet(f"color: {a_color}; font-weight: 700; font-size: 12px; min-width: 170px;")
+            c_l.addWidget(title_lbl)
+
+            desc_lbl = QLabel(a_desc)
+            desc_lbl.setStyleSheet("color: #94A3B8; font-size: 11px;")
+            desc_lbl.setWordWrap(True)
+            c_l.addWidget(desc_lbl, 1)
+
+            t2_l.addWidget(card)
+
+        t2_l.addStretch()
+        self.tabs.addTab(self._make_scroll_tab(t2_w), "👥 7 Specialized Agents")
+
+        # -------------------------------------------------------------------
+        # Tab 3: 🚌 Communication Bus
+        # -------------------------------------------------------------------
+        t3_w = QWidget()
+        t3_l = QVBoxLayout(t3_w)
+        t3_l.setContentsMargins(8, 8, 8, 8)
+        t3_l.setSpacing(10)
+
+        t3_content = QLabel("""
+        <h3 style='color: #00D1FF; margin-top: 0; font-size: 15px;'>🚌 Inter-Agent Communication Bus & Live Collaboration</h3>
+        <p style='color: #CBD5E1; font-size: 12px; line-height: 1.6;'>
+            In Sage AI, agents do not work in isolated silos. They communicate in real-time across an asynchronous <b>Publish / Subscribe (Pub/Sub) Communication Bus</b>.
+        </p>
+
+        <div style='background: #0F1A2E; border: 1px solid #1E2E4A; border-radius: 8px; padding: 12px; margin-bottom: 8px;'>
+            <div style='color: #38BDF8; font-weight: 700; font-size: 12px; margin-bottom: 6px;'>How Inter-Agent Messaging Works:</div>
+            <div style='font-size: 11px; color: #CBD5E1; line-height: 1.8; font-family: monospace;'>
+                1. <b>[Orchestrator ➔ Task Decomposer]</b> <span style='color:#00D1FF;'>(decompose)</span>: Goal split into 4 dependency steps.<br>
+                2. <b>[Planning Agent ➔ All]</b> <span style='color:#00D1FF;'>(plan_created)</span>: Strategic roadmap and milestones formulated.<br>
+                3. <b>[Research Agent ➔ Coding Agent]</b> <span style='color:#00D1FF;'>(research_brief)</span>: Best libraries and API docs gathered.<br>
+                4. <b>[Coding Agent ➔ All]</b> <span style='color:#00D1FF;'>(code_generated)</span>: Source files and test suite written.<br>
+                5. <b>[Self-Reflection ➔ Orchestrator]</b> <span style='color:#00D1FF;'>(quality_check)</span>: Deliverables score: 98% AST verified!
+            </div>
+        </div>
+
+        <div style='background: #0F1A2E; border: 1px solid #1E2E4A; border-radius: 8px; padding: 12px;'>
+            <div style='color: #10B981; font-weight: 700; font-size: 12px; margin-bottom: 4px;'>Live Execution & Deliverables Drawer</div>
+            <p style='color: #94A3B8; font-size: 12px; margin: 0; line-height: 1.5;'>
+                Click <b style='color: #fff;'>View</b> on any task in the Recent Tasks list to open the <b>Collaboration Drawer</b>. Here you can inspect live bus event streams, view the step-by-step agent timeline, copy deliverables, or inspect generated files directly.
+            </p>
+        </div>
+        """)
+        t3_content.setTextFormat(Qt.RichText)
+        t3_content.setWordWrap(True)
+        t3_l.addWidget(t3_content)
+        t3_l.addStretch()
+        self.tabs.addTab(self._make_scroll_tab(t3_w), "🚌 Communication Bus")
+
+        # -------------------------------------------------------------------
+        # Tab 4: 🛠️ Pro Features & Shortcuts
+        # -------------------------------------------------------------------
+        t4_w = QWidget()
+        t4_l = QVBoxLayout(t4_w)
+        t4_l.setContentsMargins(8, 8, 8, 8)
+        t4_l.setSpacing(10)
+
+        t4_content = QLabel("""
+        <h3 style='color: #00D1FF; margin-top: 0; font-size: 15px;'>🛠️ Pro Features & Productivity Shortcuts</h3>
+        <table style='width: 100%; border-collapse: collapse; font-size: 12px; color: #CBD5E1;'>
+            <tr style='border-bottom: 1px solid #1E2E4A;'>
+                <th style='text-align: left; padding: 8px; color: #38BDF8; width: 28%;'>Feature</th>
+                <th style='text-align: left; padding: 8px; color: #38BDF8;'>How to Use It</th>
+            </tr>
+            <tr style='border-bottom: 1px solid #142136;'>
+                <td style='padding: 8px;'><b style='color: #F8FAFC;'>📎 Files & Folders</b></td>
+                <td style='padding: 8px; color: #94A3B8;'>Click <b>＋ Add Files</b> or <b>📁 Add Folder</b> to attach PDFs, CSV spreadsheets, or full coding repositories. Attached files appear as interactive chips you can remove anytime.</td>
+            </tr>
+            <tr style='border-bottom: 1px solid #142136;'>
+                <td style='padding: 8px;'><b style='color: #F8FAFC;'>🌐 Live Web Search</b></td>
+                <td style='padding: 8px; color: #94A3B8;'>Toggle <b>🌐 Web Search</b> on the input toolbar. Agents query Google / Tavily in real time to fetch current documentation, prices, or news.</td>
+            </tr>
+            <tr style='border-bottom: 1px solid #142136;'>
+                <td style='padding: 8px;'><b style='color: #F8FAFC;'>🎙 Voice Task Input</b></td>
+                <td style='padding: 8px; color: #94A3B8;'>Click the microphone icon (<b>🎙</b>) to dictate complex requests hands-free.</td>
+            </tr>
+            <tr style='border-bottom: 1px solid #142136;'>
+                <td style='padding: 8px;'><b style='color: #F8FAFC;'>⚙ Quick Actions</b></td>
+                <td style='padding: 8px; color: #94A3B8;'>Use the right-rail buttons: <b>Take Screenshot</b> to capture active windows into the workspace, <b>Upload Files</b>, or <b>Connect Apps</b> to inspect GitHub credentials.</td>
+            </tr>
+            <tr>
+                <td style='padding: 8px;'><b style='color: #F8FAFC;'>⌨ Keyboard Shortcuts</b></td>
+                <td style='padding: 8px; color: #94A3B8;'>Press <b style='color: #fff;'>Enter</b> to send instantly. Press <b style='color: #fff;'>Shift + Enter</b> to add line breaks in multi-line prompt mode.</td>
+            </tr>
+        </table>
+        """)
+        t4_content.setTextFormat(Qt.RichText)
+        t4_content.setWordWrap(True)
+        t4_l.addWidget(t4_content)
+        t4_l.addStretch()
+        self.tabs.addTab(self._make_scroll_tab(t4_w), "🛠️ Pro Features")
+
+        # -------------------------------------------------------------------
+        # Tab 5: 💡 Interactive Examples (1-Click Tryout)
+        # -------------------------------------------------------------------
+        t5_w = QWidget()
+        t5_l = QVBoxLayout(t5_w)
+        t5_l.setContentsMargins(8, 8, 8, 8)
+        t5_l.setSpacing(10)
+
+        t5_intro = QLabel("""
+        <h3 style='color: #00D1FF; margin-top: 0; font-size: 15px;'>💡 Interactive Presets (Click to Try Now)</h3>
+        <p style='color: #CBD5E1; font-size: 12px; margin-bottom: 8px;'>
+            Click <b>\"Load this Goal ➔\"</b> on any preset below. It will automatically load the prompt into the Hub and select the ideal specialist agent:
+        </p>
+        """)
+        t5_intro.setTextFormat(Qt.RichText)
+        t5_l.addWidget(t5_intro)
+
+        examples = [
+            (
+                "🌐 Full-Stack Web Application",
+                "Build a modern responsive landing page website with interactive dark mode, clean CSS styling, and form validation.",
+                AGENT_CODING,
+                "#3B82F6",
+                "Build a responsive landing page website with modern CSS styles and interactive components."
+            ),
+            (
+                "📊 Financial & Data Metrics Analysis",
+                "Analyze dataset.csv to identify customer retention cohorts, revenue trends, and performance outliers.",
+                AGENT_DATA_ANALYSIS,
+                "#10B981",
+                "Analyze dataset.csv to identify trends, correlations, and performance outliers."
+            ),
+            (
+                "🔍 Deep Framework & AI Research",
+                "Research modern multi-agent AI architectures, compare LangGraph vs AutoGen vs CrewAI, and summarize key findings.",
+                AGENT_RESEARCH,
+                "#00D1FF",
+                "Research modern multi-agent AI architectures, compare LangGraph vs AutoGen vs CrewAI, and summarize key findings."
+            ),
+            (
+                "🎨 Visual Media & Architecture Diagram",
+                "Render an SVG system architecture diagram illustrating distributed agents, message bus, and vector memory.",
+                AGENT_IMAGE_MEDIA,
+                "#A855F7",
+                "Render an SVG system architecture diagram illustrating distributed agents, message bus, and vector memory."
+            ),
+            (
+                "📅 4-Week Agile Product Roadmap",
+                "Break down a SaaS product MVP launch into 4 weekly sprints with milestone checkpoints and team deliverables.",
+                AGENT_PLANNING,
+                "#818CF8",
+                "Break down a full-stack SaaS product roadmap into 4 weekly sprints with milestone checkpoints."
+            ),
+        ]
+
+        for ex_title, ex_desc, ex_agent, ex_color, ex_prompt in examples:
+            card = QFrame()
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background: #0E182A;
+                    border: 1px solid {ex_color}44;
+                    border-radius: 8px;
+                    padding: 8px 12px;
+                }}
+            """)
+            c_l = QHBoxLayout(card)
+            c_l.setContentsMargins(6, 4, 6, 4)
+            c_l.setSpacing(10)
+
+            info_col = QVBoxLayout()
+            info_col.setSpacing(2)
+
+            t_lbl = QLabel(ex_title)
+            t_lbl.setStyleSheet(f"color: {ex_color}; font-weight: 700; font-size: 12px;")
+            info_col.addWidget(t_lbl)
+
+            d_lbl = QLabel(ex_desc)
+            d_lbl.setStyleSheet("color: #94A3B8; font-size: 11px;")
+            d_lbl.setWordWrap(True)
+            info_col.addWidget(d_lbl)
+            c_l.addLayout(info_col, 1)
+
+            load_btn = QPushButton("🚀 Load this Goal →")
+            load_btn.setCursor(Qt.PointingHandCursor)
+            load_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background: {ex_color}1a;
+                    color: {ex_color};
+                    border: 1px solid {ex_color}66;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    font-size: 11px;
+                    font-weight: 700;
+                }}
+                QPushButton:hover {{
+                    background: {ex_color};
+                    color: #070D18;
+                }}
+            """)
+            load_btn.clicked.connect(lambda _, p=ex_prompt, a=ex_agent: self._load_example(p, a))
+            c_l.addWidget(load_btn)
+
+            t5_l.addWidget(card)
+
+        t5_l.addStretch()
+        self.tabs.addTab(self._make_scroll_tab(t5_w), "💡 Interactive Examples")
+
+        root_l.addWidget(self.tabs, 1)
+
+        # Bottom Action Bar
+        bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(4, 4, 4, 4)
+
+        tip_lbl = QLabel("💡 Tip: You can reopen this guide anytime using the <b>📖 Hub Tutorial</b> button or footer <b>Help</b>.")
+        tip_lbl.setStyleSheet("color: #64748B; font-size: 11px;")
+        bottom_row.addWidget(tip_lbl)
+        bottom_row.addStretch()
+
+        close_btn = QPushButton("Got it, Let's Build! 🚀")
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0072ff, stop:1 #00d1ff);
+                color: #FFFFFF;
+                font-weight: 700;
+                font-size: 12px;
+                padding: 7px 20px;
+                border: none;
+                border-radius: 7px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0084ff, stop:1 #38bdf8);
+            }
+        """)
+        close_btn.clicked.connect(self.accept)
+        bottom_row.addWidget(close_btn)
+        root_l.addLayout(bottom_row)
+
+    def _load_example(self, prompt: str, agent_name: str):
+        self.example_loaded.emit(prompt, agent_name)
+        self.accept()
 
 
 # ---------------------------------------------------------------------------
@@ -699,6 +1140,7 @@ class MultiAgentView(QWidget):
         self._preset_buttons: List[QPushButton] = []
         self._attached_files: List[Dict[str, str]] = []
         self._execution_dialog: Optional[LiveExecutionDialog] = None
+        self._tutorial_dialog: Optional[MultiAgentTutorialDialog] = None
 
         self._init_ui()
         self._wire_signals()
@@ -747,9 +1189,9 @@ class MultiAgentView(QWidget):
         header_layout.setContentsMargins(0, 0, 20, 0)
         header_layout.setSpacing(16)
 
-        # Left Column: Greeting & Subtitle
+        # Left Column: Greeting & Subtitle + Tutorial CTA
         greeting_col = QVBoxLayout()
-        greeting_col.setSpacing(4)
+        greeting_col.setSpacing(6)
 
         # Determine time of day
         cur_hour = time.localtime().tm_hour
@@ -763,6 +1205,8 @@ class MultiAgentView(QWidget):
         db_user = get_db().get_setting("user_display_name", "")
         first_name = db_user.strip().split()[0] if db_user and db_user.strip() else "Suraj"
 
+        title_row = QHBoxLayout()
+        title_row.setSpacing(12)
         self.title_lbl = QLabel(f"{period}, {first_name} 👋")
         self.title_lbl.setStyleSheet("""
             QLabel {
@@ -773,10 +1217,35 @@ class MultiAgentView(QWidget):
                 background: transparent;
             }
         """)
-        greeting_col.addWidget(self.title_lbl)
+        title_row.addWidget(self.title_lbl)
 
-        self.sub_lbl = QLabel("What would you like to do today?")
-        self.sub_lbl.setStyleSheet("color: #94A3B8; font-size: 13.5px; font-weight: 500; background: transparent;")
+        self.tutorial_btn = QPushButton("📖  Hub Tutorial")
+        self.tutorial_btn.setCursor(Qt.PointingHandCursor)
+        self.tutorial_btn.setToolTip("Open Multi-Agent Hub Interactive Tutorial & Guide")
+        self.tutorial_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 209, 255, 0.16), stop:1 rgba(192, 132, 252, 0.16));
+                color: #00D1FF;
+                border: 1px solid rgba(0, 209, 255, 0.4);
+                border-radius: 14px;
+                padding: 4px 14px;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 209, 255, 0.28), stop:1 rgba(192, 132, 252, 0.28));
+                border-color: #00D1FF;
+                color: #FFFFFF;
+            }
+        """)
+        self.tutorial_btn.clicked.connect(self._show_tutorial_dialog)
+        title_row.addWidget(self.tutorial_btn)
+        title_row.addStretch()
+
+        greeting_col.addLayout(title_row)
+
+        self.sub_lbl = QLabel("What would you like to do today? Select an intent or describe your multi-agent goal.")
+        self.sub_lbl.setStyleSheet("color: #94A3B8; font-size: 13px; font-weight: 500; background: transparent;")
         greeting_col.addWidget(self.sub_lbl)
         header_layout.addLayout(greeting_col)
         header_layout.addStretch()
@@ -796,7 +1265,7 @@ class MultiAgentView(QWidget):
         script_lbl.setStyleSheet("""
             QLabel {
                 color: #38BDF8;
-                font-size: 12.5px;
+                font-size: 13px;
                 font-style: italic;
                 font-weight: 700;
                 font-family: 'Segoe Script', 'Brush Script MT', cursive, sans-serif;
@@ -818,7 +1287,7 @@ class MultiAgentView(QWidget):
             QLabel {
                 background-color: #FFFFFF;
                 color: #0B1322;
-                font-size: 10.5px;
+                font-size: 11px;
                 font-weight: 800;
                 border-radius: 12px;
                 padding: 5px 10px;
@@ -889,6 +1358,11 @@ class MultiAgentView(QWidget):
         left_col = QVBoxLayout(left_widget)
         left_col.setContentsMargins(0, 0, 0, 0)
         left_col.setSpacing(16)
+
+        # Multi-Agent Workflow Pipeline Visualizer (Interactive Live Motion)
+        from ui.components.agent_workflow_animator import MultiAgentWorkflowVisualizer, AgentStatus
+        self.workflow_visualizer = MultiAgentWorkflowVisualizer(self)
+        left_col.addWidget(self.workflow_visualizer)
 
         # 1. Main Task Input Box
         self.input_card = QFrame()
@@ -1005,7 +1479,7 @@ class MultiAgentView(QWidget):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0072ff, stop:1 #00d1ff);
                 color: #FFFFFF;
                 font-weight: 700;
-                font-size: 12.5px;
+                font-size: 13px;
                 padding: 6px 20px;
                 border: none;
                 border-radius: 7px;
@@ -1052,7 +1526,7 @@ class MultiAgentView(QWidget):
         # 2. Example Tasks Section
         example_header = QHBoxLayout()
         example_title = QLabel("💻  Example Tasks")
-        example_title.setStyleSheet("color: #F8FAFC; font-size: 13.5px; font-weight: 700;")
+        example_title.setStyleSheet("color: #F8FAFC; font-size: 14px; font-weight: 700;")
         example_header.addWidget(example_title)
         example_header.addStretch()
 
@@ -1085,7 +1559,7 @@ class MultiAgentView(QWidget):
         # 3. Recent Tasks Section
         recent_header = QHBoxLayout()
         recent_title = QLabel("📋  Recent Tasks")
-        recent_title.setStyleSheet("color: #F8FAFC; font-size: 13.5px; font-weight: 700;")
+        recent_title.setStyleSheet("color: #F8FAFC; font-size: 14px; font-weight: 700;")
         recent_header.addWidget(recent_title)
         recent_header.addStretch()
 
@@ -1100,13 +1574,13 @@ class MultiAgentView(QWidget):
         self.recent_tasks_col.setSpacing(4)
         left_col.addLayout(self.recent_tasks_col)
 
-        self.recent_empty_lbl = QLabel("No recent tasks yet.\nSelect an example above or enter a task to begin.")
+        self.recent_empty_lbl = QLabel("No recent tasks yet.\nSelect an example above, click '📖 Hub Tutorial', or enter a task to begin.")
         self.recent_empty_lbl.setAlignment(Qt.AlignCenter)
         self.recent_empty_lbl.setWordWrap(True)
         self.recent_empty_lbl.setStyleSheet("""
             QLabel {
                 color: #64748B;
-                font-size: 11.5px;
+                font-size: 12px;
                 padding: 20px 16px;
                 border: 1px dashed #1E2D4A;
                 border-radius: 8px;
@@ -1168,13 +1642,13 @@ class MultiAgentView(QWidget):
 
         files_hdr = QHBoxLayout()
         files_title = QLabel("📁  Your Files")
-        files_title.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 700;")
+        files_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700;")
         files_hdr.addWidget(files_title)
         files_hdr.addStretch()
 
         view_files_btn = QPushButton("View All →")
         view_files_btn.setCursor(Qt.PointingHandCursor)
-        view_files_btn.setStyleSheet("background: transparent; color: #00D1FF; font-size: 10.5px; border: none;")
+        view_files_btn.setStyleSheet("background: transparent; color: #00D1FF; font-size: 11px; border: none;")
         files_hdr.addWidget(view_files_btn)
         files_layout.addLayout(files_hdr)
 
@@ -1185,7 +1659,7 @@ class MultiAgentView(QWidget):
         self.no_files_lbl = QLabel("No files uploaded yet.\nUse 'Upload Files' or '＋ Add Files' to add documents.")
         self.no_files_lbl.setAlignment(Qt.AlignCenter)
         self.no_files_lbl.setWordWrap(True)
-        self.no_files_lbl.setStyleSheet("color: #64748B; font-size: 10.5px; padding: 14px 6px; font-style: italic;")
+        self.no_files_lbl.setStyleSheet("color: #64748B; font-size: 11px; padding: 14px 6px; font-style: italic;")
         files_layout.addWidget(self.no_files_lbl)
 
         right_col.addWidget(files_card)
@@ -1199,7 +1673,7 @@ class MultiAgentView(QWidget):
 
         agents_hdr = QHBoxLayout()
         agents_title = QLabel("👥  Active Agents")
-        agents_title.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 700;")
+        agents_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700;")
         agents_hdr.addWidget(agents_title)
         agents_hdr.addStretch()
 
@@ -1224,7 +1698,7 @@ class MultiAgentView(QWidget):
         actions_layout.setSpacing(8)
 
         actions_title = QLabel("⚙  Quick Actions")
-        actions_title.setStyleSheet("color: #F8FAFC; font-size: 12.5px; font-weight: 700;")
+        actions_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700;")
         actions_layout.addWidget(actions_title)
 
         grid_actions = QGridLayout()
@@ -1240,6 +1714,28 @@ class MultiAgentView(QWidget):
         grid_actions.addWidget(btn_audio, 1, 0)
         grid_actions.addWidget(btn_connect, 1, 1)
         actions_layout.addLayout(grid_actions)
+
+        # Full-width interactive guide button
+        self.tutorial_action_btn = QPushButton("🎓  Interactive Hub Guide")
+        self.tutorial_action_btn.setCursor(Qt.PointingHandCursor)
+        self.tutorial_action_btn.setFixedHeight(34)
+        self.tutorial_action_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 209, 255, 0.12), stop:1 rgba(16, 185, 129, 0.12));
+                color: #38BDF8;
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 209, 255, 0.22), stop:1 rgba(16, 185, 129, 0.22));
+                border-color: #00D1FF;
+                color: #FFFFFF;
+            }
+        """)
+        self.tutorial_action_btn.clicked.connect(self._show_tutorial_dialog)
+        actions_layout.addWidget(self.tutorial_action_btn)
 
         right_col.addWidget(actions_card)
         right_col.addStretch()
@@ -1273,6 +1769,8 @@ class MultiAgentView(QWidget):
                     color: #00D1FF;
                 }
             """)
+            if link_text == "Help":
+                l_btn.clicked.connect(self._show_tutorial_dialog)
             footer_layout.addWidget(l_btn)
 
         main_layout.addLayout(footer_layout)
@@ -1401,7 +1899,7 @@ class MultiAgentView(QWidget):
 
             time_txt = f"{f_size} • {f_time}" if f_size else f_time
             time_l = QLabel(time_txt)
-            time_l.setStyleSheet("color: #64748B; font-size: 9.5px;")
+            time_l.setStyleSheet("color: #64748B; font-size: 10px;")
             f_row.addWidget(time_l)
 
             dots_l = QLabel("⋮")
@@ -1569,6 +2067,19 @@ class MultiAgentView(QWidget):
         self._execution_dialog.show()
         self._execution_dialog.raise_()
 
+    def _show_tutorial_dialog(self):
+        """Displays an interactive in-app step-by-step tutorial for the Multi-Agent Hub."""
+        dlg = MultiAgentTutorialDialog(self)
+        dlg.example_loaded.connect(self._on_tutorial_example_loaded)
+        dlg.exec()
+
+    def _on_tutorial_example_loaded(self, prompt: str, agent_name: str):
+        self.goal_input.setText(prompt)
+        idx = self.agent_combo.findData(agent_name)
+        if idx >= 0:
+            self.agent_combo.setCurrentIndex(idx)
+        self.status_lbl.setText(f"Preset loaded for '{agent_name}'. Ready to execute.")
+
     # -----------------------------------------------------------------------
     # Multi-Agent Goal Execution
     # -----------------------------------------------------------------------
@@ -1610,6 +2121,13 @@ class MultiAgentView(QWidget):
             "summary": f"### 🚀 Multi-Agent Execution\n**Goal**: {goal}\n\n*Running pipeline with specialized agents...*"
         }
 
+        # Update visualizer pipeline to active
+        if hasattr(self, "workflow_visualizer"):
+            from ui.components.agent_workflow_animator import AgentStatus
+            self.workflow_visualizer.reset_pipeline()
+            self.workflow_visualizer.transition_to_stage("user", AgentStatus.COMPLETED, "Goal received")
+            self.workflow_visualizer.transition_to_stage("planner", AgentStatus.WORKING, "Decomposing task...")
+
         # Save to DB
         raw_tasks = get_db().get_setting("multi_agent_recent_tasks", "[]")
         try:
@@ -1648,11 +2166,41 @@ class MultiAgentView(QWidget):
             self._execution_dialog.status_lbl.setText(stage)
             self._execution_dialog.progress_bar.setValue(val)
 
+        if hasattr(self, "workflow_visualizer"):
+            s_lower = stage.lower()
+            from ui.components.agent_workflow_animator import AgentStatus
+            if any(k in s_lower for k in ("verif", "validat", "test", "review")):
+                self.workflow_visualizer.transition_to_stage("verifier", AgentStatus.WORKING, "Validating results")
+            elif any(k in s_lower for k in ("synthes", "final", "deliver", "complete")):
+                self.workflow_visualizer.transition_to_stage("delivery", AgentStatus.WORKING, "Finalizing deliverable")
+            elif any(k in s_lower for k in ("plan", "decompos", "dag")):
+                self.workflow_visualizer.transition_to_stage("planner", AgentStatus.WORKING, "Planning steps")
+            elif any(k in s_lower for k in ("execut", "agent", "tool")):
+                self.workflow_visualizer.transition_to_stage("worker", AgentStatus.WORKING, stage[:25])
+
     def _on_step_updated(self, step: dict):
         ag_type = step.get("agent_type")
         status = step.get("status")
         if ag_type in self.agent_cards:
             self.agent_cards[ag_type].set_working(status == "in_progress")
+
+        if hasattr(self, "workflow_visualizer"):
+            from ui.components.agent_workflow_animator import AgentStatus
+            if status == "in_progress":
+                desc = step.get("description", "")
+                self.workflow_visualizer.transition_to_stage(
+                    "worker",
+                    AgentStatus.WORKING,
+                    detail=f"Executing {desc[:20]}" if desc else "In progress",
+                    specialist_name=ag_type
+                )
+            elif status == "completed":
+                self.workflow_visualizer.transition_to_stage(
+                    "worker",
+                    AgentStatus.COMPLETED,
+                    detail="Step finished",
+                    specialist_name=ag_type
+                )
 
     def _on_bus_event(self, evt: dict):
         from_ag = evt.get("from_agent", "Agent")
@@ -1669,6 +2217,10 @@ class MultiAgentView(QWidget):
         self.run_btn.setEnabled(True)
         self.run_btn.setText("✈  Send")
         self.status_lbl.setText(f"✅ Automated Completion in {res.get('elapsed_seconds', 0)}s!")
+
+        if hasattr(self, "workflow_visualizer"):
+            from ui.components.agent_workflow_animator import AgentStatus
+            self.workflow_visualizer.transition_to_stage("delivery", AgentStatus.COMPLETED, "Verified & Delivered")
 
         for card in self.agent_cards.values():
             card.set_working(False)
@@ -1699,6 +2251,11 @@ class MultiAgentView(QWidget):
         self.run_btn.setEnabled(True)
         self.run_btn.setText("✈  Send")
         self.status_lbl.setText(f"⚠️ Orchestrator Error: {error}")
+
+        if hasattr(self, "workflow_visualizer"):
+            from ui.components.agent_workflow_animator import AgentStatus
+            self.workflow_visualizer.transition_to_stage("worker", AgentStatus.ERROR, error[:25])
+
         for card in self.agent_cards.values():
             card.set_working(False)
         self.out_browser.setPlainText(f"Error during execution:\n{error}")
@@ -1725,7 +2282,7 @@ class MultiAgentView(QWidget):
                     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {primary_dark}, stop:1 {primary});
                     color: #FFFFFF;
                     font-weight: 700;
-                    font-size: 12.5px;
+                    font-size: 13px;
                     padding: 6px 18px;
                     border: none;
                     border-radius: 7px;

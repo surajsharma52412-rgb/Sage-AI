@@ -1,5 +1,5 @@
 """
-Settings View Component for Sage AI (Lunar Engine).
+Settings View Component for Sage AI.
 In-window settings page (replaces popup dialog) providing:
 - Profile & AI Persona Configuration
 - Theme Select & Font Scaling
@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QPushButton, QTabWidget, QFrame, QScrollArea,
     QGridLayout, QComboBox, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 
 from database.db_manager import get_db
 from .analytics_view import AnalyticsView
@@ -65,7 +65,7 @@ class SettingsView(QWidget):
         title_box.addWidget(title_lbl)
 
         sub_lbl = QLabel("Personalize your profile, AI assistant persona, and workspace configuration")
-        sub_lbl.setStyleSheet("color: #94A3B8; font-size: 11.5px;")
+        sub_lbl.setStyleSheet("color: #94A3B8; font-size: 12px;")
         title_box.addWidget(sub_lbl)
         header.addLayout(title_box)
 
@@ -91,7 +91,7 @@ class SettingsView(QWidget):
                 border-top-right-radius: 8px;
                 padding: 10px 22px;
                 margin-right: 4px;
-                font-size: 12.5px;
+                font-size: 13px;
                 font-weight: 600;
             }
             QTabBar::tab:selected {
@@ -129,9 +129,10 @@ class SettingsView(QWidget):
     def _create_profile_tab(self) -> QWidget:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        tab = QWidget()
+        scroll.setWidget(tab)
         scroll.setStyleSheet("background: transparent; border: none;")
 
-        tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(16, 12, 16, 16)
         layout.setSpacing(18)
@@ -250,6 +251,40 @@ class SettingsView(QWidget):
         form_grid.addWidget(self.persona_combo, 3, 1)
 
         layout.addLayout(form_grid)
+
+        # Motion & Performance Profile Section
+        from ui.components.animation_system import get_anim_manager, PerformanceTier
+        mgr = get_anim_manager()
+        tier_card = QFrame()
+        tier_card.setStyleSheet("""
+            QFrame {
+                background-color: #162033;
+                border: 1px solid #273449;
+                border-radius: 10px;
+                padding: 12px;
+            }
+        """)
+        tc_layout = QVBoxLayout(tier_card)
+        tc_layout.setSpacing(6)
+        tier_lbl = QLabel("⚡ Motion & Performance Engine Profile")
+        tier_lbl.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700;")
+        tc_layout.addWidget(tier_lbl)
+
+        tier_combo = QComboBox()
+        tier_combo.setStyleSheet(self._combo_style())
+        tier_combo.addItem("🚀 High Performance (60 FPS, all glow conduits & micro-interactions)", PerformanceTier.HIGH.value)
+        tier_combo.addItem("✨ Normal (Balanced smooth transitions & streaming feedback)", PerformanceTier.NORMAL.value)
+        tier_combo.addItem("🔋 Low Performance (Power saver, disables continuous animation loops)", PerformanceTier.LOW.value)
+        tier_combo.addItem("♿ Reduced Motion (Accessibility, disables large movements & scaling)", PerformanceTier.REDUCED_MOTION.value)
+
+        curr_val = mgr.current_tier.value
+        idx = tier_combo.findData(curr_val)
+        if idx >= 0:
+            tier_combo.setCurrentIndex(idx)
+        tier_combo.currentIndexChanged.connect(lambda: mgr.set_tier(PerformanceTier(tier_combo.currentData())))
+        tc_layout.addWidget(tier_combo)
+        layout.addWidget(tier_card)
+
         layout.addStretch()
 
         # Save Button Row
@@ -280,7 +315,6 @@ class SettingsView(QWidget):
 
         layout.addLayout(action_row)
 
-        scroll.setWidget(tab)
         return scroll
 
     def _on_name_text_changed(self, text: str):
@@ -305,6 +339,172 @@ class SettingsView(QWidget):
 
         self.profile_status.setText("✓ Profile successfully updated!")
         self.profile_updated.emit(name, email)
+
+    # --- Motion & Performance Tab ---
+    def _create_motion_tab(self) -> QWidget:
+        from ui.components.animation_system import (
+            get_anim_manager, PerformanceTier, button_micro_press
+        )
+        mgr = get_anim_manager()
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        # Overview Card
+        overview_card = QFrame()
+        overview_card.setStyleSheet("""
+            QFrame {
+                background-color: #162033;
+                border: 1px solid rgba(0, 209, 255, 0.2);
+                border-radius: 12px;
+                padding: 16px;
+            }
+        """)
+        oc_layout = QVBoxLayout(overview_card)
+        oc_layout.setSpacing(6)
+
+        oc_title = QLabel("⚡  Autonomous Motion & Performance Engine")
+        oc_title.setStyleSheet("color: #F8FAFC; font-size: 15px; font-weight: 800;")
+        oc_layout.addWidget(oc_title)
+
+        oc_desc = QLabel(
+            "Configure real-time GPU-accelerated animations, multi-agent pipeline visualizers, "
+            "and accessibility preferences for prefers-reduced-motion."
+        )
+        oc_desc.setStyleSheet("color: #94A3B8; font-size: 12px; line-height: 1.4;")
+        oc_desc.setWordWrap(True)
+        oc_layout.addWidget(oc_desc)
+        layout.addWidget(overview_card)
+
+        # Performance Tier Config Card
+        tier_card = QFrame()
+        tier_card.setStyleSheet("""
+            QFrame {
+                background-color: #121A2A;
+                border: 1px solid #273449;
+                border-radius: 12px;
+                padding: 16px;
+            }
+        """)
+        tc_layout = QVBoxLayout(tier_card)
+        tc_layout.setSpacing(12)
+
+        tier_lbl = QLabel("Active Animation Profile")
+        tier_lbl.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700;")
+        tc_layout.addWidget(tier_lbl)
+
+        tier_combo = QComboBox()
+        tier_combo.setStyleSheet(self._combo_style())
+        tier_combo.addItem("🚀 High Performance (60 FPS, all glow conduits & micro-interactions)", PerformanceTier.HIGH.value)
+        tier_combo.addItem("✨ Normal (Balanced smooth transitions & streaming feedback)", PerformanceTier.NORMAL.value)
+        tier_combo.addItem("🔋 Low Performance (Power saver, disables continuous animation loops)", PerformanceTier.LOW.value)
+        tier_combo.addItem("♿ Reduced Motion (Accessibility, disables large movements & scaling)", PerformanceTier.REDUCED_MOTION.value)
+
+        curr_val = mgr.current_tier.value
+        idx = tier_combo.findData(curr_val)
+        if idx >= 0:
+            tier_combo.setCurrentIndex(idx)
+        tc_layout.addWidget(tier_combo)
+
+        tier_info_lbl = QLabel()
+        tier_info_lbl.setStyleSheet("color: #38BDF8; font-size: 12px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 10px;")
+        tier_info_lbl.setWordWrap(True)
+        tc_layout.addWidget(tier_info_lbl)
+
+        def _update_desc():
+            data = tier_combo.currentData()
+            if data == PerformanceTier.HIGH.value:
+                tier_info_lbl.setText("• Full visual fidelity: Multi-agent photon beam conduits, subtle glowing borders, tactile micro-presses, and smooth scroll interpolation enabled.")
+            elif data == PerformanceTier.NORMAL.value:
+                tier_info_lbl.setText("• Balanced experience: Fluid message entrances, stage transitions, and tactile feedback enabled with low CPU overhead.")
+            elif data == PerformanceTier.LOW.value:
+                tier_info_lbl.setText("• Battery Saver: Disables all continuous timers when idle, shortens transition durations, and prioritizes maximum battery longevity.")
+            else:
+                tier_info_lbl.setText("• Accessibility Mode (prefers-reduced-motion): Disables position and scale shifts. Retains instant color/state feedback to guarantee maximum clarity and comfort.")
+
+        tier_combo.currentIndexChanged.connect(_update_desc)
+        _update_desc()
+
+        layout.addWidget(tier_card)
+
+        # Capabilities Card
+        feat_card = QFrame()
+        feat_card.setStyleSheet("""
+            QFrame {
+                background-color: #121A2A;
+                border: 1px solid #273449;
+                border-radius: 12px;
+                padding: 14px;
+            }
+        """)
+        fc_layout = QVBoxLayout(feat_card)
+        fc_layout.setSpacing(8)
+
+        fc_title = QLabel("System Motion Capabilities")
+        fc_title.setStyleSheet("color: #F8FAFC; font-size: 13px; font-weight: 700;")
+        fc_layout.addWidget(fc_title)
+
+        caps = [
+            ("🧠 Multi-Agent Flowchart", "Directional photon conduits & live stage indicator", "Active"),
+            ("💬 Smart Chat Viewport", "Reading position protection during live AI token streams", "Active"),
+            ("📋 Tactile Micro-Interactions", "Physical press feedback & auto-reverting 'Copied!' label", "Active"),
+            ("⚡ 0% Idle CPU Guarantee", "Background animation timers automatically pause when inactive", "Active"),
+        ]
+
+        for c_title, c_sub, c_status in caps:
+            row = QHBoxLayout()
+            lbl_title = QLabel(f"<b>{c_title}</b>: {c_sub}")
+            lbl_title.setStyleSheet("color: #94A3B8; font-size: 11px;")
+            row.addWidget(lbl_title, 1)
+
+            lbl_badge = QLabel(f"● {c_status}")
+            lbl_badge.setStyleSheet("color: #10B981; font-size: 10px; font-weight: 700;")
+            row.addWidget(lbl_badge)
+            fc_layout.addLayout(row)
+
+        layout.addWidget(feat_card)
+
+        # Action Button Row
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+
+        save_btn = QPushButton("💾  Save Motion Profile")
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0072ff, stop:1 #00d1ff);
+                color: #FFFFFF;
+                font-weight: 700;
+                font-size: 13px;
+                padding: 9px 24px;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0084ff, stop:1 #38bdf8);
+            }
+        """)
+
+        def _save_motion():
+            data = tier_combo.currentData()
+            button_micro_press(save_btn)
+            mgr.set_tier(PerformanceTier(data))
+            orig_text = save_btn.text()
+            save_btn.setText("✅  Saved!")
+            QTimer.singleShot(1500, lambda: save_btn.setText(orig_text))
+
+        save_btn.clicked.connect(_save_motion)
+        btn_row.addWidget(save_btn)
+        layout.addLayout(btn_row)
+
+        scroll.setWidget(container)
+        return scroll
 
     def _input_style(self) -> str:
         return """

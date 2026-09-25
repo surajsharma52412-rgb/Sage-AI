@@ -1,5 +1,5 @@
 """
-Cohere Provider for Sage AI (Lunar Engine).
+Cohere Provider for Sage AI.
 Enterprise Command R+ models and RAG-optimized inference.
 """
 import time

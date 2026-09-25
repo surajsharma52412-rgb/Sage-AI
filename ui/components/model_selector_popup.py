@@ -1,18 +1,19 @@
 """
-Searchable Model Selector Popup Component for Sage AI (Lunar Engine).
+Searchable Model Selector Popup Component for Sage AI.
 Matches the user's reference UI design:
 - Top search input: '🔍 Search models'
 - Categorized provider sections (Nvidia, Groq, OpenRouter, Gemini, Ollama, Auto Router)
 - Model cards with token usage badges and '[Free]' / '[Active]' indicators
 - Sticky bottom footer: '⚙ Manage models' and '🔄 Refresh Models'
 """
+import math
 from typing import Optional, Dict, Any, List
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QScrollArea, QWidget, QFrame, QGraphicsDropShadowEffect,
     QSizePolicy, QApplication
 )
-from PySide6.QtCore import Qt, Signal, QPoint, QSize
+from PySide6.QtCore import Qt, Signal, QPoint, QSize, QTimer
 from PySide6.QtGui import QColor
 
 from database.db_manager import get_db
@@ -67,6 +68,8 @@ class ModelItemWidget(QFrame):
         is_free: bool = False,
         is_active: bool = False,
         is_available: bool = True,
+        tier_type: str = "",
+        reset_time: str = "",
         parent=None
     ):
         super().__init__(parent)
@@ -75,6 +78,25 @@ class ModelItemWidget(QFrame):
         self.provider_name = provider_name
         self.is_active = is_active
         self.is_available = is_available
+
+        if not tier_type:
+            if "ollama" in provider_name.lower() or "ollama" in model_name.lower():
+                tier_type = "100% Free Offline"
+                reset_time = "Never (Unlimited Local)"
+            elif is_free:
+                tier_type = "Free Tier"
+                if not reset_time:
+                    try:
+                        from engine.model_scanner import ModelScanner
+                        p_id = model_name.split(":")[0].strip() if ":" in model_name else provider_name
+                        res_info = ModelScanner.get_provider_reset_info(p_id)
+                        reset_time = res_info.get("reset_time", "")
+                    except Exception:
+                        reset_time = "Daily at 00:00 UTC"
+            else:
+                tier_type = "Paid / Credits"
+        self.tier_type = tier_type
+        self.reset_time = reset_time
 
         self.setCursor(Qt.PointingHandCursor)
         self.setObjectName("modelRow")
@@ -95,7 +117,7 @@ class ModelItemWidget(QFrame):
         name_lbl.setStyleSheet(f"color: {active_color}; font-size: 13px; font-weight: 600;")
         info_col.addWidget(name_lbl)
 
-        # Subtext: Token usage & ID
+        # Subtext: Token usage & ID & Reset Info
         sub_text_parts = []
         if tokens_used > 0:
             if tokens_used >= 1000:
@@ -105,6 +127,9 @@ class ModelItemWidget(QFrame):
 
         if self.display_name != self.model_name:
             sub_text_parts.append(self.model_name)
+
+        if is_free and self.tier_type != "100% Free Offline" and self.reset_time:
+            sub_text_parts.append(f"Resets {self.reset_time}")
 
         if sub_text_parts:
             sub_lbl = ElidedLabel(" • ".join(sub_text_parts))
@@ -162,7 +187,9 @@ class ModelItemWidget(QFrame):
             badge_layout.addWidget(unavail_badge)
 
         if is_free:
-            free_badge = QLabel("🟢 Free")
+            badge_lbl = "🟢 100% Free Offline (0 Rs)" if self.tier_type == "100% Free Offline" else "🟢 Free Tier (0 Rs)"
+            free_badge = QLabel(badge_lbl)
+            free_badge.setToolTip(f"Tier: {self.tier_type} | Limit Reset: {self.reset_time or 'Daily 00:00 UTC'} | Cost: 0 Rs Guaranteed")
             free_badge.setStyleSheet("""
                 background-color: rgba(16, 185, 129, 0.15);
                 color: #10b981;
@@ -173,6 +200,32 @@ class ModelItemWidget(QFrame):
                 padding: 2px 6px;
             """)
             badge_layout.addWidget(free_badge)
+
+            if self.reset_time and self.tier_type != "100% Free Offline":
+                reset_badge = QLabel(f"⏱ Resets {self.reset_time}")
+                reset_badge.setStyleSheet("""
+                    background-color: rgba(0, 209, 255, 0.12);
+                    color: #00D1FF;
+                    border: 1px solid rgba(0, 209, 255, 0.3);
+                    border-radius: 4px;
+                    font-size: 9px;
+                    font-weight: 600;
+                    padding: 2px 5px;
+                """)
+                badge_layout.addWidget(reset_badge)
+        else:
+            shift_badge = QLabel("🛡️ Shifts to Free")
+            shift_badge.setToolTip("Paid model (> 0 Rs). Zero-Cost Guard will automatically shift requests to a 100% Free model (0 Rs).")
+            shift_badge.setStyleSheet("""
+                background-color: rgba(245, 158, 11, 0.15);
+                color: #f59e0b;
+                border: 1px solid rgba(245, 158, 11, 0.35);
+                border-radius: 4px;
+                font-size: 10px;
+                font-weight: 700;
+                padding: 2px 6px;
+            """)
+            badge_layout.addWidget(shift_badge)
 
         layout.addWidget(badge_container, 0, Qt.AlignRight | Qt.AlignVCenter)
 
@@ -202,6 +255,7 @@ class ModelSelectorPopup(QDialog):
 
     model_selected = Signal(str)
     manage_models_requested = Signal()
+    global_ranking_requested = Signal()
 
     def __init__(self, current_model: str = "Auto Router", parent=None):
         super().__init__(parent, Qt.Popup | Qt.FramelessWindowHint)
@@ -269,6 +323,56 @@ class ModelSelectorPopup(QDialog):
         search_layout.addWidget(self.search_input, 1)
 
         card_layout.addWidget(search_box)
+
+        # Zero-Cost Guard Enforcer Status Banner with Live Breathing Animation
+        self.zero_cost_banner = QFrame()
+        self.zero_cost_banner.setCursor(Qt.PointingHandCursor)
+        self.zero_cost_banner.setToolTip("Click to view Zero-Cost Guard budget savings & model shift analytics")
+        zc_layout = QHBoxLayout(self.zero_cost_banner)
+        zc_layout.setContentsMargins(10, 5, 10, 5)
+        zc_layout.setSpacing(8)
+
+        self.zc_icon = QLabel("🛡️")
+        self.zc_icon.setStyleSheet("font-size: 13px; background: transparent;")
+        zc_layout.addWidget(self.zc_icon)
+
+        zc_text = QLabel("Zero-Cost Guard: Active (Guaranteed ≤ 0 Rs Free)")
+        zc_text.setStyleSheet("color: #10b981; font-size: 11px; font-weight: 700; background: transparent;")
+        zc_layout.addWidget(zc_text, 1)
+
+        self.zc_dot = QLabel("● 0 Rs")
+        self.zc_dot.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 800; background: transparent;")
+        zc_layout.addWidget(self.zc_dot)
+
+        self.zero_cost_banner.mousePressEvent = self._on_zero_cost_banner_clicked
+        card_layout.addWidget(self.zero_cost_banner)
+
+        self._zc_pulse_step = 0.0
+        self._zc_timer = QTimer(self)
+        self._zc_timer.timeout.connect(self._animate_zc_banner)
+        self._zc_timer.start(50)
+
+        # Global Model Ranking Quick Action Banner
+        rank_banner = QPushButton("📊 View Global Model Ranking (All 54 Models) ➔")
+        rank_banner.setCursor(Qt.PointingHandCursor)
+        rank_banner.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 209, 255, 0.08);
+                color: #00D1FF;
+                border: 1px solid rgba(0, 209, 255, 0.25);
+                border-radius: 8px;
+                padding: 7px 12px;
+                font-size: 12px;
+                font-weight: 700;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 209, 255, 0.18);
+                border-color: #00D1FF;
+            }
+        """)
+        rank_banner.clicked.connect(self._on_global_ranking_clicked)
+        card_layout.addWidget(rank_banner)
 
         # 2. Scrollable Model List
         self.scroll = QScrollArea()
@@ -537,8 +641,15 @@ class ModelSelectorPopup(QDialog):
             if not free_models:
                 continue
 
-            # Group header label
-            header = QLabel(f"{group_name} • Free Tier")
+            # Group header label with explicit Tier and Reset schedule
+            prov_key = group_name.lower().replace(" ", "_")
+            if "ollama" in prov_key:
+                header_text = f"{group_name} • 100% Free Offline (Unlimited Local)"
+            else:
+                res_info = ModelScanner.get_provider_reset_info(prov_key)
+                header_text = f"{group_name} • Free Tier (Resets {res_info.get('reset_time', '00:00 UTC')})"
+
+            header = QLabel(header_text)
             header.setStyleSheet("color: #4f80ff; font-size: 11px; font-weight: 700; margin-top: 8px; margin-bottom: 2px; margin-left: 6px;")
             self.list_layout.addWidget(header)
             self.group_headers.append(header)
@@ -557,7 +668,9 @@ class ModelSelectorPopup(QDialog):
                     tokens_used=m.get("tokens_used", 0),
                     is_free=True,
                     is_active=is_active,
-                    is_available=ModelScanner.is_provider_available(prov_id)
+                    is_available=ModelScanner.is_provider_available(prov_id),
+                    tier_type=m.get("tier_type", ""),
+                    reset_time=m.get("reset_time", "")
                 )
                 item.clicked.connect(self._select_model)
                 self.list_layout.addWidget(item)
@@ -566,7 +679,7 @@ class ModelSelectorPopup(QDialog):
         self.list_layout.addStretch()
 
     def _create_quota_banner(self, quotas: Dict[str, Any]) -> QWidget:
-        """Shows quick token balance summary chip."""
+        """Shows quick token balance summary chip and dynamic limit reset time."""
         frame = QFrame()
         frame.setStyleSheet("""
             QFrame {
@@ -576,21 +689,36 @@ class ModelSelectorPopup(QDialog):
                 padding: 4px;
             }
         """)
-        layout = QHBoxLayout(frame)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(3)
+
+        res_info = ModelScanner.get_provider_reset_info("gemini")
+        reset_time_str = res_info.get("reset_time", "00:00 UTC")
 
         parts = []
-        if "openrouter" in quotas:
-            rem = quotas["openrouter"].get("remaining_amount", 0.0)
-            parts.append(f"OpenRouter: ${rem:.2f} left")
+        if "gemini" in quotas:
+            rem = quotas["gemini"].get("remaining_amount", 1500)
+            parts.append(f"Gemini: {int(rem)}/day")
+        if "groq" in quotas:
+            rem = quotas["groq"].get("remaining_amount", 14400)
+            parts.append(f"Groq: {int(rem):,}/day")
         if "nvidia" in quotas:
             rem = quotas["nvidia"].get("remaining_amount", 1000.0)
             parts.append(f"NVIDIA: {int(rem)} free credits")
+        if "openrouter" in quotas:
+            rem = quotas["openrouter"].get("remaining_amount", 0.0)
+            if rem > 0:
+                parts.append(f"OpenRouter: ${rem:.2f}")
 
-        lbl_text = " • ".join(parts) if parts else "Providers active & connected"
+        lbl_text = " • ".join(parts) if parts else "Free Tier Cloud & Local Models Connected"
         lbl = QLabel(f"💳  {lbl_text}")
         lbl.setStyleSheet("color: #00D1FF; font-size: 11px; font-weight: 600;")
         layout.addWidget(lbl)
+
+        reset_lbl = QLabel(f"⏱  <b>Free Tier Limits Reset:</b> {reset_time_str}")
+        reset_lbl.setStyleSheet("color: #10b981; font-size: 10px; font-weight: 500;")
+        layout.addWidget(reset_lbl)
         return frame
 
     def _filter_models(self, query: str):
@@ -614,6 +742,10 @@ class ModelSelectorPopup(QDialog):
 
     def _on_manage_clicked(self):
         self.manage_models_requested.emit()
+        self.accept()
+
+    def _on_global_ranking_clicked(self):
+        self.global_ranking_requested.emit()
         self.accept()
 
     def _on_rescan_clicked(self):
@@ -661,3 +793,51 @@ class ModelSelectorPopup(QDialog):
         self.move(popup_x, popup_y)
         self.show()
         self.search_input.setFocus()
+
+    def _animate_zc_banner(self):
+        """Animates a smooth breathing neon-emerald glow for the Zero-Cost Guard indicator banner."""
+        self._zc_pulse_step = getattr(self, "_zc_pulse_step", 0.0) + 0.08
+        glow_alpha = 0.10 + 0.12 * (0.5 * (1 + math.sin(self._zc_pulse_step)))
+        border_alpha = 0.28 + 0.35 * (0.5 * (1 + math.sin(self._zc_pulse_step)))
+        beacon_alpha = 0.40 + 0.60 * (0.5 * (1 + math.sin(self._zc_pulse_step)))
+
+        self.zero_cost_banner.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(16, 185, 129, {glow_alpha:.3f}),
+                    stop:1 rgba(15, 230, 181, {glow_alpha * 0.5:.3f}));
+                border: 1px solid rgba(16, 185, 129, {border_alpha:.3f});
+                border-radius: 8px;
+            }}
+            QFrame:hover {{
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 rgba(16, 185, 129, 0.28),
+                    stop:1 rgba(15, 230, 181, 0.15));
+                border-color: #10b981;
+            }}
+        """)
+        if hasattr(self, "zc_dot"):
+            self.zc_dot.setStyleSheet(f"color: rgba(16, 185, 129, {beacon_alpha:.2f}); font-size: 10px; font-weight: 800; background: transparent;")
+
+    def _on_zero_cost_banner_clicked(self, event=None):
+        try:
+            from ui.components.zero_cost_dialog import ZeroCostGuardDialog
+            dlg = ZeroCostGuardDialog(parent=self.parent())
+            dlg.exec()
+        except Exception:
+            pass
+
+    def showEvent(self, event):
+        if hasattr(self, "_zc_timer") and not self._zc_timer.isActive():
+            self._zc_timer.start(50)
+        super().showEvent(event)
+
+    def hideEvent(self, event):
+        if hasattr(self, "_zc_timer") and self._zc_timer.isActive():
+            self._zc_timer.stop()
+        super().hideEvent(event)
+
+    def closeEvent(self, event):
+        if hasattr(self, "_zc_timer") and self._zc_timer.isActive():
+            self._zc_timer.stop()
+        super().closeEvent(event)

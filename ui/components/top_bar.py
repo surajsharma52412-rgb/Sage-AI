@@ -64,10 +64,26 @@ class TopBar(QWidget):
         self.bell_btn = QPushButton()
         self.bell_btn.setVisible(False)
 
-        # 2. Right Icons: Settings Gear
+        # 2. Right Icons: Trace Status Badge & Settings Gear
         right_row = QHBoxLayout()
         right_row.setSpacing(10)
         right_row.setAlignment(Qt.AlignVCenter)
+
+        # Model Trace Status Badge
+        self.trace_badge = QLabel("")
+        self.trace_badge.setVisible(False)
+        self.trace_badge.setStyleSheet("""
+            QLabel {
+                background-color: rgba(0, 209, 255, 0.12);
+                color: #00D1FF;
+                border: 1px solid rgba(0, 209, 255, 0.35);
+                border-radius: 6px;
+                padding: 3px 8px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+        """)
+        right_row.addWidget(self.trace_badge)
 
         # Settings Gear Button
         self.settings_btn = QPushButton("⚙")
@@ -92,6 +108,12 @@ class TopBar(QWidget):
         right_row.addWidget(self.settings_btn)
 
         layout.addLayout(right_row)
+
+    def show_trace_status(self, text: str, tooltip: str = ""):
+        """Displays startup model trace notification badge in the top bar."""
+        self.trace_badge.setText(text)
+        self.trace_badge.setToolTip(tooltip or text)
+        self.trace_badge.setVisible(True)
 
     def _on_search_enter(self):
         txt = self.search_input.text().strip()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Sage AI (Lunar Engine) - Linux & macOS Launcher
+# Sage AI - Linux & macOS Launcher
 # Automatically detects virtual environment, checks dependencies, and launches Sage AI.
 # ==============================================================================
 
@@ -25,5 +25,5 @@ else
 fi
 
 # 2. Launch Sage AI
-echo "Starting Sage AI (Lunar Engine)..."
+echo "Starting Sage AI..."
 exec "$PYTHON_BIN" main.py "$@"

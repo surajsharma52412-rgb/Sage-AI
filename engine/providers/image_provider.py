@@ -1,5 +1,5 @@
 """
-Image Generation Provider for Sage AI (Lunar Engine).
+Image Generation Provider for Sage AI.
 Workflow:
 User asks for image
        ↓

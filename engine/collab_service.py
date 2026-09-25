@@ -1,5 +1,5 @@
 """
-Real-Time Collaborative Coding & Whiteboard Service for Sage AI (Lunar Engine).
+Real-Time Collaborative Coding & Whiteboard Service for Sage AI.
 Enables multi-user pair programming and synchronized architecture sketching across LAN, Wi-Fi, or direct IP.
 Architecture:
 - CollabServer: Threaded TCP server handling multiple peer connections, multi-file edits, and whiteboard strokes.
@@ -43,16 +43,24 @@ from PySide6.QtCore import QObject, Signal
 logger = logging.getLogger(__name__)
 
 
+_cached_local_ip = None
+
 def get_local_ip() -> str:
     """Detects the primary LAN IP address of this machine."""
+    global _cached_local_ip
+    if _cached_local_ip:
+        return _cached_local_ip
     s = None
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.2)
         s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
+        _cached_local_ip = s.getsockname()[0]
+        return _cached_local_ip
     except Exception:
         try:
-            return socket.gethostbyname(socket.gethostname())
+            _cached_local_ip = socket.gethostbyname(socket.gethostname())
+            return _cached_local_ip
         except Exception:
             return "127.0.0.1"
     finally:

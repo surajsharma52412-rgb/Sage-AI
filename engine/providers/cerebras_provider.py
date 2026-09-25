@@ -1,5 +1,5 @@
 """
-Cerebras Provider for Sage AI (Lunar Engine).
+Cerebras Provider for Sage AI.
 Ultra-fast wafer-scale engine inference (2000+ tokens/sec on LLaMA 3.1 & 3.3).
 """
 import json

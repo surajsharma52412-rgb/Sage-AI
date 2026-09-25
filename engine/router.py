@@ -1,10 +1,10 @@
 """
-Fallback Router for Sage AI (Lunar Engine).
+Fallback Router for Sage AI.
 Orchestrates intent classification, multi-provider waterfall fallback,
 web evidence synthesis, and real-time stage event notifications.
 """
 import logging
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Tuple
 
 from config import (
     INTENT_CODING,
@@ -30,6 +30,7 @@ from .providers.search_provider import SearchProvider
 from .providers.image_provider import ImageProvider
 from .providers.local_facts_provider import LocalFactsProvider
 from engine.orchestrator.core_brain import get_orchestrator
+from engine.zero_cost_guard import get_zero_cost_guard
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class FallbackRouter:
 
     def __init__(self):
         self.orchestrator = get_orchestrator()
+        self.zero_cost_guard = get_zero_cost_guard()
         # Initialize providers
         self.providers = {
             "openrouter": OpenRouterProvider(),
@@ -93,7 +95,7 @@ class FallbackRouter:
 
         core_identity = (
             "Core Identity & Origin:\n"
-            "- You are Sage AI, an advanced autonomous desktop AI workspace powered by the Lunar Engine.\n"
+            "- You are Sage AI, an advanced autonomous desktop AI workspace powered by the Sage Engine.\n"
             "- Your creator, founder, and lead developer is Suraj Sharma. This fact is permanent, immutable, and non-negotiable.\n"
             "- Whenever asked who created you, who made you, who is your developer, who built you, or about your origins, you must always clearly, proudly, and definitively state that you were created and developed by Suraj Sharma.\n\n"
         )
@@ -153,6 +155,32 @@ class FallbackRouter:
         """Alias for route_and_execute to ensure seamless compatibility with automations and tools."""
         return self.route_and_execute(*args, **kwargs)
 
+    def route_and_call(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        preferred_providers: Optional[List[str]] = None,
+        selected_model: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Convenience caller for autonomous agents and subagents returning a standardized dict."""
+        resp = self.route_and_execute(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            selected_model=selected_model,
+            preferred_providers=preferred_providers,
+            **kwargs
+        )
+        return {
+            "success": resp.success,
+            "text": resp.text,
+            "response": resp.text,
+            "model_name": resp.model_name,
+            "provider_id": resp.provider_id,
+            "error_msg": resp.error_msg,
+            "metadata": resp.metadata or {}
+        }
+
     def _execute_route(
         self,
         prompt: str,
@@ -208,9 +236,32 @@ class FallbackRouter:
                 metadata=orch_res
             )
 
-        # 2. Check for manual provider override
+        # 2. Check for manual provider override with Zero-Cost Guard Architecture
+        guard_meta = {}
         if selected_model and not any(k in selected_model.lower() for k in ("auto", "automatic")):
+            was_shifted, eff_model, eff_provider, guard_meta = self.zero_cost_guard.guard_request(
+                requested_model=selected_model,
+                task_type=intent,
+                on_stage_change=on_stage_change
+            )
+            if was_shifted:
+                selected_model = eff_model
+
             provider_key, specific_model = self._map_model_selection(selected_model)
+
+            # If specific model still resolves to a paid (> 0 Rs) model, enforce zero-cost shift
+            if specific_model and not self.zero_cost_guard.is_zero_cost(specific_model, provider_key):
+                f_m, f_p, s_reason = self.zero_cost_guard.resolve_free_model(specific_model, task_type=intent)
+                specific_model = f_m
+                provider_key = f_p
+                guard_meta["was_shifted"] = True
+                guard_meta["effective_model"] = f_m
+                guard_meta["effective_provider"] = f_p
+                self._notify_stage(
+                    on_stage_change,
+                    f"🛡️ Zero-Cost Guard: Model '{selected_model}' requires credits (> 0 Rs). Shifted to 100% Free model '{f_m}' ({f_p.title()} • 0 Rs)."
+                )
+
             if provider_key in self.providers:
                 self._notify_stage(on_stage_change, f"Calling selected model: {selected_model}...")
                 provider = self.providers[provider_key]
@@ -222,6 +273,8 @@ class FallbackRouter:
                 resp = provider.generate(prompt, history=history, on_chunk=on_chunk, **call_kwargs)
                 if resp.success:
                     self._notify_stage(on_stage_change, f"Response completed via {resp.model_name}")
+                    if guard_meta.get("was_shifted"):
+                        resp.metadata["zero_cost_guard"] = guard_meta
                     return resp
                 else:
                     self._notify_stage(on_stage_change, f"{selected_model} returned error: {resp.error_msg}")
@@ -229,23 +282,21 @@ class FallbackRouter:
                     from database.db_manager import get_db
                     cascade_on = get_db().get_setting("cascade_enabled", "true") == "true"
                     if cascade_on:
-                        self._notify_stage(on_stage_change, f"Primary {selected_model} unavailable. Waterfall fallback activating...")
-                        candidates = ["nvidia", "groq", "gemini", "openrouter", "ollama_coder", "ollama_chat"]
-                        fallback_keys = [k for k in candidates if k != provider_key]
+                        self._notify_stage(on_stage_change, f"Primary {selected_model} unavailable. Zero-Cost Free Waterfall scanning & shifting activating...")
+                        free_queue = self.zero_cost_guard.get_free_waterfall_queue(task_type=intent, excluded_models=[selected_model])
                         f_sys_prompt = call_kwargs.pop("system_prompt", None) or self._get_persona_system_prompt()
-                        # Remove specific model override so fallbacks use their native functional models
-                        call_kwargs.pop("model", None)
-                        fallback_resp = self._waterfall_execute(
-                            fallback_keys,
+                        fallback_resp = self._free_waterfall_execute(
+                            free_queue,
                             prompt,
                             history=history,
                             on_stage_change=on_stage_change,
                             on_chunk=on_chunk,
-                            intent_label=f"Waterfall Fallback from {selected_model}",
                             system_prompt=f_sys_prompt,
                             **call_kwargs
                         )
                         if fallback_resp.success:
+                            if guard_meta.get("was_shifted"):
+                                fallback_resp.metadata["zero_cost_guard"] = guard_meta
                             return fallback_resp
 
                     error_report = (
@@ -264,7 +315,58 @@ class FallbackRouter:
                         error_msg=resp.error_msg
                     )
 
-        # 3. Route according to Intent
+        # 3. Universal AI Auto Router (Global dynamic ranking across ALL 54 models)
+        if not selected_model or any(k in selected_model.lower() for k in ("auto", "automatic")):
+            if intent == INTENT_LOCAL_FACTS:
+                self._notify_stage(on_stage_change, "Evaluating system knowledge...")
+                resp = self.providers["local_facts"].generate(prompt, history=history, on_chunk=on_chunk, **kwargs)
+                self._notify_stage(on_stage_change, "Completed instant fact check")
+                return resp
+            elif intent == INTENT_IMAGE:
+                self._notify_stage(on_stage_change, "Checking free image credits & activating Black Forest FLUX.1...")
+                resp = self.providers["image"].generate(prompt, history=history, on_chunk=on_chunk, **kwargs)
+                if resp.is_image:
+                    self._notify_stage(on_stage_change, "Completed visual render via Black Forest FLUX.1")
+                return resp
+            elif intent in (INTENT_WEB_SEARCH, INTENT_GITHUB):
+                return self._handle_web_search(prompt, history, on_stage_change, on_chunk, **kwargs)
+            else:
+                # If all primary providers were disabled/offline, route directly to local offline fallback
+                if not any(self.providers[k].is_available() for k in ["groq", "gemini", "nvidia", "openrouter", "ollama_chat", "ollama_coder"] if k in self.providers):
+                    return self.providers["local_facts"].generate(prompt, history=history, on_chunk=on_chunk, **kwargs)
+
+                from engine.auto_router import get_auto_router
+                auto_router = get_auto_router()
+                sys_p = kwargs.pop("system_prompt", None) or self._get_persona_system_prompt()
+                res = auto_router.route(
+                    prompt=prompt,
+                    history=history,
+                    system_prompt=sys_p,
+                    on_stage_change=on_stage_change,
+                    on_chunk=on_chunk,
+                    **kwargs
+                )
+                if res.success:
+                    meta = dict(res.response.metadata or {})
+                    meta.update({
+                        "global_rank": res.global_rank,
+                        "overall_score": res.score,
+                        "fallback_used": res.fallback_used,
+                        "attempted_models": res.attempted_models,
+                        "task_type": res.task_type if isinstance(res.task_type, str) else getattr(res.task_type, "value", str(res.task_type)),
+                        "telemetry_badge": res.telemetry_badge,
+                    })
+                    return ProviderResponse(
+                        text=res.text,
+                        model_name=res.model_name,
+                        provider_id=res.provider_id,
+                        latency_ms=res.latency_ms,
+                        success=True,
+                        metadata=meta
+                    )
+                logger.warning("AutoRouter reported failure (%s), falling back to emergency waterfall.", res.error_msg)
+
+        # 4. Fallback Intent Waterfall Routes
         if intent == INTENT_LOCAL_FACTS:
             self._notify_stage(on_stage_change, "Evaluating system knowledge...")
             resp = self.providers["local_facts"].generate(prompt, history=history, on_chunk=on_chunk, **kwargs)
@@ -375,6 +477,12 @@ class FallbackRouter:
             if not provider:
                 continue
 
+            # Zero-Cost Guard: verify candidate model / provider is strictly 0 Rs
+            cand_model = kwargs.get("model") or getattr(provider, "default_model", None) or key
+            if not self.zero_cost_guard.is_zero_cost(str(cand_model), key):
+                logger.info("Zero-Cost Guard: Skipping paid candidate %s on %s (> 0 Rs)", cand_model, key)
+                continue
+
             # Check availability if possible before attempting network roundtrip
             if not provider.is_available() and key != "local_facts":
                 continue
@@ -403,6 +511,79 @@ class FallbackRouter:
 
         # If everything in list failed, invoke local facts/offline fallback
         self._notify_stage(on_stage_change, "Using Sage local offline fallback...")
+        local_resp = self.providers["local_facts"].generate(prompt, history=history, on_chunk=on_chunk, **kwargs)
+        local_resp.metadata["attempted_errors"] = attempted_errors
+        return local_resp
+
+    def _free_waterfall_execute(
+        self,
+        free_queue: List[Tuple[str, str, str]],
+        prompt: str,
+        history: Optional[List[Dict[str, Any]]],
+        on_stage_change: Optional[Callable[[str], None]],
+        on_chunk: Optional[Callable[[str], None]],
+        system_prompt: Optional[str] = None,
+        **kwargs
+    ) -> ProviderResponse:
+        """
+        Scans candidate models before sending request to guarantee cost is strictly 0 Rs.
+        If a model fails or requires payment, shifts to the next free model in the chain
+        until a working free model is reached.
+        """
+        if not system_prompt:
+            system_prompt = self._get_persona_system_prompt()
+        attempted_errors = []
+
+        for model_id, prov_id, desc in free_queue:
+            # 1. Scan before sending: verify candidate model costs <= 0 Rs
+            if not self.zero_cost_guard.is_zero_cost(model_id, prov_id):
+                logger.info("🛡️ Pre-request scan: model '%s' on '%s' is not free. Shifting to next candidate...", model_id, prov_id)
+                continue
+
+            provider = self.providers.get(prov_id)
+            if not provider:
+                # Check if provider can be resolved (e.g. ollama_coder, ollama_chat)
+                if prov_id == "ollama":
+                    provider = self.providers.get("ollama_coder") or self.providers.get("ollama_chat")
+                if not provider:
+                    continue
+
+            if not provider.is_available() and prov_id != "local_facts":
+                continue
+
+            self._notify_stage(on_stage_change, f"🛡️ Free Model Scan: Verified 0 Rs. Routing to {model_id} ({prov_id.title()})...")
+
+            call_kwargs = dict(kwargs)
+            call_kwargs["model"] = model_id
+
+            try:
+                resp = provider.generate(
+                    prompt,
+                    history=history,
+                    system_prompt=system_prompt,
+                    on_chunk=on_chunk,
+                    **call_kwargs
+                )
+            except Exception as e:
+                logger.warning("Provider %s model %s error: %s", prov_id, model_id, e)
+                attempted_errors.append(f"{model_id} ({prov_id}): {str(e)}")
+                self._notify_stage(on_stage_change, f"Model {model_id} failed, shifting to next free model...")
+                continue
+
+            if resp.success:
+                self._notify_stage(on_stage_change, f"Generated via {resp.model_name} (0 Rs Free Tier)")
+                return resp
+            else:
+                err_lower = (resp.error_msg or "").lower()
+                is_paid_err = any(k in err_lower for k in ("402", "payment", "credit", "quota", "unavailable for free", "balance"))
+                if is_paid_err:
+                    self._notify_stage(on_stage_change, f"🛡️ Intercepted payment requirement on '{model_id}'. Shifting to next free model...")
+                else:
+                    self._notify_stage(on_stage_change, f"Model {model_id} unavailable, shifting to next free model...")
+                attempted_errors.append(f"{model_id} ({prov_id}): {resp.error_msg}")
+
+        # Final guaranteed 0 Rs offline fallback
+        self._notify_stage(on_stage_change, "Using Sage local offline assistant (100% Free 0 Rs)...")
         local_resp = self.providers["local_facts"].generate(prompt, history=history, on_chunk=on_chunk, **kwargs)
         local_resp.metadata["attempted_errors"] = attempted_errors
         return local_resp
@@ -494,7 +675,7 @@ class FallbackRouter:
         elif "gemini" in label_lower:
             return "gemini", specific_model or "gemini-1.5-flash"
         elif "openrouter" in label_lower:
-            return "openrouter", specific_model or "qwen/qwen-2.5-coder-32b-instruct:free"
+            return "openrouter", specific_model or "deepseek/deepseek-r1"
         elif "qwen" in label_lower:
             if "ollama" in label_lower:
                 return "ollama_coder", specific_model or "qwen2.5-coder:7b"
@@ -508,7 +689,7 @@ class FallbackRouter:
             return "search", None
         elif "deepseek" in label_lower:
             if self.providers.get("openrouter") and self.providers["openrouter"].is_available():
-                return "openrouter", specific_model or "deepseek/deepseek-r1:free"
+                return "openrouter", specific_model or "deepseek/deepseek-r1"
             elif self.providers.get("nvidia") and self.providers["nvidia"].is_available():
                 return "nvidia", specific_model or "deepseek-ai/deepseek-r1"
             elif self.providers.get("groq") and self.providers["groq"].is_available():
@@ -516,7 +697,7 @@ class FallbackRouter:
             elif self.providers.get("ollama_coder") and self.providers["ollama_coder"].is_available():
                 return "ollama_coder", specific_model or "deepseek-r1:8b"
             else:
-                return "openrouter", specific_model or "deepseek/deepseek-r1:free"
+                return "openrouter", specific_model or "deepseek/deepseek-r1"
 
         # Check active providers in priority order if provider was not explicitly in label
         for p_key in ("cerebras", "groq", "nvidia", "mistral", "cloudflare", "cohere", "openrouter", "gemini", "huggingface", "ollama_chat"):

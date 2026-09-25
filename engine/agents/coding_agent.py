@@ -48,6 +48,7 @@ class CodingAgent(BaseAgent):
         # Sync workspace root if changed
         ws_root = getattr(self.workspace, "root_path", None) or getattr(self.workspace, "root", None)
         if ws_root:
+            Path(ws_root).mkdir(parents=True, exist_ok=True)
             self.v6_orchestrator.set_workspace(ws_root)
 
         # Check for shared research memory context

@@ -103,10 +103,19 @@ class BaseAgent(ABC):
         # Default waterfall chain
         chain = preferred_providers or ["groq", "nvidia", "gemini", "openrouter", "ollama", "local_facts"]
 
+        from engine.zero_cost_guard import get_zero_cost_guard
+        guard = get_zero_cost_guard()
+
         start_time = time.time()
         for p_key in chain:
             provider = providers.get(p_key)
             if not provider:
+                continue
+
+            # Zero-Cost Guard: verify candidate model / provider is strictly 0 Rs
+            target_model = kwargs.get("model") or getattr(provider, "default_model", None) or p_key
+            if not guard.is_zero_cost(str(target_model), p_key):
+                logger.info("🛡️ Zero-Cost Guard: Agent skipping paid candidate %s on %s (> 0 Rs)", target_model, p_key)
                 continue
 
             # Skip if credentials not available unless local_facts

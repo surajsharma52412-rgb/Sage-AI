@@ -1,5 +1,5 @@
 """
-Live Collaboration Dialog for Sage AI (Lunar Engine).
+Live Collaboration Dialog for Sage AI.
 Allows users to host or join real-time collaborative coding sessions in the IDE.
 """
 from typing import Optional, Dict
@@ -120,7 +120,8 @@ class CollabPanelWidget(QWidget):
         # --- Tab 1: Host ---
         host_tab = QWidget()
         host_layout = QVBoxLayout(host_tab)
-        host_layout.setSpacing(10)        # Mode Selection: Worldwide Internet vs Local LAN
+        host_layout.setSpacing(10)
+        # Mode Selection: Worldwide Internet vs Local LAN
         mode_box = QVBoxLayout()
         mode_box.setSpacing(4)
         mode_lbl = QLabel("NETWORK MODE")
@@ -261,7 +262,7 @@ class CollabPanelWidget(QWidget):
                 color: #00D1FF;
                 border: 1.5px solid rgba(0, 209, 255, 0.5);
                 border-radius: 6px;
-                font-size: 13.5px;
+                font-size: 14px;
                 font-weight: 800;
                 letter-spacing: 1.2px;
                 padding: 4px 8px;
@@ -694,11 +695,11 @@ class CollabPanelWidget(QWidget):
                 port = 8989
             ok = self.manager.join_session(host=host_part.strip(), port=port, user_name=nickname)
             if not ok:
-                QMessageBox.warning(self, "Connection Failed", f"Could not reach host at {host_part}:{port}.\nVerify IP address and ensure host is active.")
+                QMessageBox.warning(self, "Connection Errors", f"Could not reach host at {host_part}:{port}.\nVerify IP address and ensure host is active.")
         else:
             ok = self.manager.join_session_cloud(room_code=target_raw, user_name=nickname)
             if not ok:
-                QMessageBox.warning(self, "Connection Failed", f"Could not connect to Cloud Room '{target_raw}'.\nVerify room code and check internet connection.")
+                QMessageBox.warning(self, "Connection Errors", f"Could not connect to Cloud Room '{target_raw}'.\nVerify room code and check internet connection.")
 
         self._refresh_state()
 

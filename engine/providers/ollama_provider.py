@@ -1,5 +1,5 @@
 """
-Ollama Local Provider for Sage AI (Lunar Engine).
+Ollama Local Provider for Sage AI.
 Direct REST integration with locally hosted Ollama instances for private offline inference,
 with auto-start capability and dynamic model discovery.
 """

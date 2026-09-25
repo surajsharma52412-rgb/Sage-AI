@@ -1,5 +1,5 @@
 """
-Base Provider interface for Sage AI (Lunar Engine).
+Base Provider interface for Sage AI.
 Defines standard response format and execution lifecycle.
 """
 from abc import ABC, abstractmethod

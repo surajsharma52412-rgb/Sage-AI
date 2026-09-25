@@ -1,5 +1,5 @@
 """
-Chat Worker QThread for Sage AI (Lunar Engine).
+Chat Worker QThread for Sage AI.
 Runs multi-provider waterfall fallback asynchronously, emitting real-time signals
 for stage transitions and token streams.
 """

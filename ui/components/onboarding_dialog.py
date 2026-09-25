@@ -34,6 +34,14 @@ class FirstLaunchOnboardingDialog(QDialog):
 
         self._init_ui()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        try:
+            from ui.components.animation_system import modal_entrance
+            modal_entrance(self)
+        except Exception:
+            pass
+
     def _init_ui(self):
         self.setStyleSheet("""
             QDialog {
@@ -50,7 +58,7 @@ class FirstLaunchOnboardingDialog(QDialog):
                 border-radius: 8px;
                 color: #f8fafc;
                 padding: 9px 12px;
-                font-size: 12.5px;
+                font-size: 13px;
             }
             QLineEdit:focus {
                 border-color: #00D1FF;
@@ -125,7 +133,7 @@ class FirstLaunchOnboardingDialog(QDialog):
         # Name
         name_hdr = QLabel("Your Full Name <span style='color: #00D1FF;'>*</span>")
         name_hdr.setTextFormat(Qt.RichText)
-        name_hdr.setStyleSheet("font-size: 11.5px; font-weight: 700; color: #cbd5e1;")
+        name_hdr.setStyleSheet("font-size: 12px; font-weight: 700; color: #cbd5e1;")
         form_box.addWidget(name_hdr)
 
         self.name_input = QLineEdit()
@@ -140,7 +148,7 @@ class FirstLaunchOnboardingDialog(QDialog):
 
         # Email
         email_hdr = QLabel("Email Address")
-        email_hdr.setStyleSheet("font-size: 11.5px; font-weight: 700; color: #cbd5e1;")
+        email_hdr.setStyleSheet("font-size: 12px; font-weight: 700; color: #cbd5e1;")
         form_box.addWidget(email_hdr)
 
         self.email_input = QLineEdit()
@@ -150,7 +158,7 @@ class FirstLaunchOnboardingDialog(QDialog):
 
         # Role / Profession
         role_hdr = QLabel("Role / Profession")
-        role_hdr.setStyleSheet("font-size: 11.5px; font-weight: 700; color: #cbd5e1;")
+        role_hdr.setStyleSheet("font-size: 12px; font-weight: 700; color: #cbd5e1;")
         form_box.addWidget(role_hdr)
 
         self.role_input = QLineEdit()
@@ -166,7 +174,7 @@ class FirstLaunchOnboardingDialog(QDialog):
         p_col = QVBoxLayout()
         p_col.setSpacing(4)
         persona_hdr = QLabel("Preferred AI Persona")
-        persona_hdr.setStyleSheet("font-size: 11.5px; font-weight: 700; color: #cbd5e1;")
+        persona_hdr.setStyleSheet("font-size: 12px; font-weight: 700; color: #cbd5e1;")
         p_col.addWidget(persona_hdr)
 
         self.persona_combo = QComboBox()
@@ -195,7 +203,7 @@ class FirstLaunchOnboardingDialog(QDialog):
                 border: none;
                 border-radius: 9px;
                 padding: 12px 20px;
-                font-size: 13.5px;
+                font-size: 14px;
                 font-weight: 800;
                 letter-spacing: 0.3px;
             }
@@ -218,7 +226,7 @@ class FirstLaunchOnboardingDialog(QDialog):
                 border-radius: 8px;
                 color: #f8fafc;
                 padding: 9px 12px;
-                font-size: 12.5px;
+                font-size: 13px;
             """)
             self.name_input.setFocus()
             return
