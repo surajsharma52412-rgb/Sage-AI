@@ -1,16 +1,47 @@
-# Python cache
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
 
-# Sage cache
+# Sage-AI cache
 .sage_cache/
 
-# Virtual environment
-.venv/
-
-# Environment variables / secrets
+# Environment variables
 .env
 *.env
+!.env.example
 
 # Local database
 data/sage_ai.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# Editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node modules
+node_modules/
+
+# Temporary files
+*.tmp
+*.bak
